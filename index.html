@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Futinder</title>
+
+<style>
+body { margin:0; font-family:Arial; background:#111; color:white; text-align:center; }
+.screen { display:none; padding:20px; }
+.active { display:block; }
+
+.card { width:320px; margin:auto; background:#222; border-radius:15px; padding:15px; }
+
+button { margin:5px; padding:10px; border:none; border-radius:10px; cursor:pointer; }
+
+.yes { background:green; }
+.no { background:red; }
+
+input { margin:5px; padding:8px; }
+
+.badge { color:red; font-weight:bold; }
+</style>
+</head>
+
+<body>
+
+<!-- HOME -->
+<div id="home" class="screen active">
+  <h2>⚽ Futinder</h2>
+  <div id="card"></div>
+
+  <button onclick="cambiarPantalla('crear')">➕ Crear</button>
+  <button onclick="verPerfil()">👤 Perfil</button>
+  <button onclick="verMisPartidos()">👨‍🔧 Mis partidos</button>
+  <button onclick="verNotificaciones()">
+    🔔 <span id="badge"></span>
+  </button>
+</div>
+
+<!-- CREAR -->
+<div id="crear" class="screen">
+  <h2>Crear partido</h2>
+  <input id="cancha" placeholder="Cancha"><br>
+  <input id="hora" placeholder="Hora"><br>
+  <input id="tipo" placeholder="Fútbol 5/7/11"><br>
+  <input id="jugadores" placeholder="Jugadores"><br>
+  <button onclick="crearPartido()">Crear</button>
+  <button onclick="irHome()">Volver</button>
+</div>
+
+<!-- PERFIL -->
+<div id="perfil" class="screen">
+  <h2>Mi perfil</h2>
+  <p id="nombrePerfil"></p>
+  <p id="posicionPerfil"></p>
+  <p id="ratingPerfil"></p>
+  <button onclick="editarPerfil()">Editar</button>
+  <button onclick="irHome()">Volver</button>
+</div>
+
+<!-- EDITAR -->
+<div id="editarPerfil" class="screen">
+  <input id="nombreInput"><br>
+  <input id="posicionInput"><br>
+  <button onclick="guardarPerfil()">Guardar</button>
+</div>
+
+<!-- MIS PARTIDOS -->
+<div id="misPartidos" class="screen">
+  <h2>Mis partidos</h2>
+  <div id="listaPartidos"></div>
+  <button onclick="irHome()">Volver</button>
+</div>
+
+<!-- CREADOR -->
+<div id="creador" class="screen">
+  <h2>Solicitudes</h2>
+  <div id="solicitudes"></div>
+  <button onclick="cambiarPantalla('misPartidos')">Volver</button>
+</div>
+
+<!-- CHAT -->
+<div id="chat" class="screen">
+  <h2>Chat</h2>
+  <div id="mensajes"></div>
+  <input id="mensajeInput">
+  <button onclick="enviarMensaje()">Enviar</button>
+  <button onclick="irHome()">Volver</button>
+</div>
+
+<!-- NOTIFICACIONES -->
+<div id="notificaciones" class="screen">
+  <h2>Notificaciones</h2>
+  <div id="listaNotificaciones"></div>
+  <button onclick="irHome()">Volver</button>
+</div>
+
+<script>
+
+/* DATOS */
+let partidos = JSON.parse(localStorage.getItem("partidos")) || [];
+let notificaciones = JSON.parse(localStorage.getItem("notificaciones")) || [];
+
+let perfil = JSON.parse(localStorage.getItem("perfil")) || {
+  nombre:"Vos",
+  posicion:"MC",
+  rating:4.5
+};
+
+let index = 0;
+
+/* GUARDAR */
+function guardar(){
+  localStorage.setItem("partidos", JSON.stringify(partidos));
+  localStorage.setItem("perfil", JSON.stringify(perfil));
+  localStorage.setItem("notificaciones", JSON.stringify(notificaciones));
+}
+
+/* NAV */
+function cambiarPantalla(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+function irHome(){ render(); cambiarPantalla("home"); }
+
+/* BADGE */
+function actualizarBadge(){
+  let n = notificaciones.filter(x=>!x.visto).length;
+  badge.innerText = n>0 ? `(${n})` : "";
+}
+
+/* HOME */
+function render(){
+  actualizarBadge();
+
+  if(partidos.length===0){
+    card.innerHTML="No hay partidos";
+    return;
+  }
+
+  let p = partidos[index];
+
+  card.innerHTML=`
+    <div class="card">
+      <p>${p.cancha}</p>
+      <p>${p.hora}</p>
+      <p>${p.jugadores}/${p.max}</p>
+
+      <button class="no" onclick="next()">❌</button>
+      <button class="yes" onclick="match()">✅</button>
+
+      ${puedeEntrarAlChat(p) ? `<button onclick="verChat()">💬 Chat</button>` : ""}
+    </div>`;
+}
+
+function next(){ index=(index+1)%partidos.length; render(); }
+
+function match(){
+  let p = partidos[index];
+
+  p.solicitudes.push({...perfil});
+
+  notificaciones.push({
+    tipo:"solicitud",
+    texto:`${perfil.nombre} quiere unirse a ${p.cancha}`,
+    partidoIndex:index,
+    visto:false
+  });
+
+  guardar();
+  render();
+}
+
+/* CREAR */
+function crearPartido(){
+  let tipo = document.getElementById("tipo").value;
+  let max = tipo.includes("7")?14:tipo.includes("11")?22:10;
+
+  partidos.push({
+    cancha: cancha.value,
+    hora: hora.value,
+    tipo: tipo,
+    jugadores:Number(jugadores.value),
+    max:max,
+    creador:perfil.nombre,
+    solicitudes:[],
+    confirmados:[],
+    mensajes:[]
+  });
+
+  guardar();
+  irHome();
+}
+
+/* CHAT PERMISOS */
+function puedeEntrarAlChat(p){
+  return p.creador===perfil.nombre || p.confirmados.includes(perfil.nombre);
+}
+
+/* CHAT */
+function verChat(){
+  let p=partidos[index];
+
+  if(!puedeEntrarAlChat(p)){
+    alert("No podés entrar");
+    return;
+  }
+
+  let html="";
+  p.mensajes.forEach(m=>{
+    html+=`<p><b>${m.nombre}:</b> ${m.texto}</p>`;
+  });
+
+  mensajes.innerHTML=html;
+  cambiarPantalla("chat");
+}
+
+function enviarMensaje(){
+  if(!mensajeInput.value) return;
+
+  partidos[index].mensajes.push({
+    nombre:perfil.nombre,
+    texto:mensajeInput.value
+  });
+
+  mensajeInput.value="";
+  guardar();
+  verChat();
+}
+
+/* MODO CREADOR */
+function verMisPartidos(){
+  let html="";
+  partidos.forEach((p,i)=>{
+    if(p.creador===perfil.nombre){
+      html+=`<p>${p.cancha}</p><button onclick="verDetalle(${i})">Ver</button><hr>`;
+    }
+  });
+  listaPartidos.innerHTML=html || "No tenés partidos";
+  cambiarPantalla("misPartidos");
+}
+
+function verDetalle(i){
+  index=i;
+  verCreador();
+}
+
+function verCreador(){
+  let p=partidos[index];
+  let html="";
+
+  p.solicitudes.forEach((s,i)=>{
+    html+=`
+      <p>${s.nombre}</p>
+      <button onclick="aceptar(${i})">✅</button>
+      <button onclick="rechazar(${i})">❌</button>
+      <hr>`;
+  });
+
+  solicitudes.innerHTML=html || "Sin solicitudes";
+  cambiarPantalla("creador");
+}
+
+function aceptar(i){
+  let p=partidos[index];
+  let jugador=p.solicitudes[i];
+
+  p.confirmados.push(jugador.nombre);
+  p.jugadores++;
+
+  notificaciones.push({
+    tipo:"aceptado",
+    texto:`Te aceptaron en ${p.cancha}`,
+    partidoIndex:index,
+    visto:false
+  });
+
+  p.solicitudes.splice(i,1);
+  guardar();
+  verCreador();
+}
+
+function rechazar(i){
+  partidos[index].solicitudes.splice(i,1);
+  guardar();
+  verCreador();
+}
+
+/* NOTIFICACIONES */
+function verNotificaciones(){
+  let html="";
+
+  notificaciones.forEach((n,i)=>{
+    html+=`
+      <p onclick="abrirNotificacion(${i})">
+        ${n.visto ? "" : "🔴"} ${n.texto}
+      </p>`;
+  });
+
+  listaNotificaciones.innerHTML = html || "Sin notificaciones";
+  cambiarPantalla("notificaciones");
+}
+
+function abrirNotificacion(i){
+  let n=notificaciones[i];
+  n.visto=true;
+  index=n.partidoIndex;
+
+  guardar();
+
+  if(n.tipo==="solicitud"){
+    verCreador();
+  } else {
+    verChat();
+  }
+}
+
+/* PERFIL */
+function verPerfil(){
+  nombrePerfil.innerText=perfil.nombre;
+  posicionPerfil.innerText=perfil.posicion;
+  ratingPerfil.innerText=perfil.rating;
+  cambiarPantalla("perfil");
+}
+
+function editarPerfil(){
+  nombreInput.value=perfil.nombre;
+  posicionInput.value=perfil.posicion;
+  cambiarPantalla("editarPerfil");
+}
+
+function guardarPerfil(){
+  perfil.nombre=nombreInput.value;
+  perfil.posicion=posicionInput.value;
+  guardar();
+  verPerfil();
+}
+
+/* INIT */
+render();
+
+</script>
+
+</body>
+</html>
