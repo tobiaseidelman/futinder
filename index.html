@@ -21,7 +21,14 @@ input { margin:5px; padding:8px; }
 .badge { color:red; font-weight:bold; }
 </style>
 </head>
-
+  
+<div id="crearPerfil" class="screen">
+  <h2>Crear perfil</h2>
+  <input id="nombreNuevo" placeholder="Tu nombre"><br>
+  <input id="posicionNueva" placeholder="Posición (ej: delantero)"><br>
+  <button onclick="crearPerfil()">Crear</button>
+</div>
+  
 <body>
 
 <!-- HOME -->
@@ -101,11 +108,7 @@ input { margin:5px; padding:8px; }
 let partidos = JSON.parse(localStorage.getItem("partidos")) || [];
 let notificaciones = JSON.parse(localStorage.getItem("notificaciones")) || [];
 
-let perfil = JSON.parse(localStorage.getItem("perfil")) || {
-  nombre:"Vos",
-  posicion:"MC",
-  rating:4.5
-};
+let perfil = JSON.parse(localStorage.getItem("perfil")) || null;
 
 let index = 0;
 
@@ -320,7 +323,9 @@ function abrirNotificacion(i){
 function verPerfil(){
   nombrePerfil.innerText=perfil.nombre;
   posicionPerfil.innerText=perfil.posicion;
-  ratingPerfil.innerText=perfil.rating;
+ ratingPerfil.innerText = perfil.partidos === 0 
+  ? "Sin calificación"
+  : perfil.rating;
   cambiarPantalla("perfil");
 }
 
@@ -336,9 +341,32 @@ function guardarPerfil(){
   guardar();
   verPerfil();
 }
+function crearPerfil(){
+  let nombre = document.getElementById("nombreNuevo").value;
+  let posicion = document.getElementById("posicionNueva").value;
 
+  if(!nombre || !posicion){
+    alert("Completá todo");
+    return;
+  }
+
+  perfil = {
+    nombre: nombre,
+    posicion: posicion,
+    partidos: 0,
+    rating: 0
+  };
+
+  guardar();
+  cambiarPantalla("home");
+}
 /* INIT */
-render();
+  
+if(!perfil){
+  cambiarPantalla("crearPerfil");
+} else {
+  render();
+}
 
 </script>
 
