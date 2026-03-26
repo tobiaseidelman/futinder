@@ -110,6 +110,10 @@ let notificaciones = JSON.parse(localStorage.getItem("notificaciones")) || [];
 
 let perfil = JSON.parse(localStorage.getItem("perfil")) || null;
 
+  if(perfil){
+  if(perfil.partidos === undefined) perfil.partidos = 0;
+  if(perfil.rating === undefined) perfil.rating = 0;
+}
 let index = 0;
 
 /* GUARDAR */
@@ -323,9 +327,11 @@ function abrirNotificacion(i){
 function verPerfil(){
   nombrePerfil.innerText=perfil.nombre;
   posicionPerfil.innerText=perfil.posicion;
- ratingPerfil.innerText = perfil.partidos === 0 
-  ? "Sin calificación"
-  : perfil.rating;
+if(perfil.partidos === 0){
+  ratingPerfil.innerText = "Sin calificación";
+} else {
+  ratingPerfil.innerText = perfil.rating.toFixed(1) + " ⭐";
+}
   cambiarPantalla("perfil");
 }
 
