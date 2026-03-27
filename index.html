@@ -164,6 +164,36 @@ function actualizarBadge(){
 function render(){
   actualizarBadge();
 
+  let cardDiv = document.getElementById("card");
+
+  if(partidos.length === 0){
+    cardDiv.innerHTML = "No hay partidos";
+    return;
+  }
+
+  let p = partidos[index];
+
+  cardDiv.innerHTML = `
+    <div class="card">
+
+      <div class="imagen"></div>
+
+      <h3>${p.cancha}</h3>
+
+      <p>🕓 ${p.hora}</p>
+      <p>⚽ ${p.tipo}</p>
+      <p>👤 ${p.jugadores}/${p.max} jugadores</p>
+
+      <div style="margin-top:15px;">
+        <button class="no" onclick="next()">❌</button>
+        <button class="yes" onclick="match()">✅</button>
+      </div>
+
+    </div>
+  `;
+}
+  actualizarBadge();
+
   if(partidos.length===0){
     card.innerHTML="No hay partidos";
     return;
