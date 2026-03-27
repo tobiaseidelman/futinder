@@ -198,8 +198,6 @@ function render(){
         <button class="yes" onclick="match()">✅</button>
       </div>
 
-    </div>
-  `;
 }
   actualizarBadge();
 
@@ -207,8 +205,7 @@ function render(){
     card.innerHTML="No hay partidos";
     return;
   }
-
-  let p = partidos[index];
+let p = partidos[index];
 
   card.innerHTML = `
     <div class="card">
@@ -333,7 +330,7 @@ function verPerfilCreador(nombre){
 }
 
 function puedeEntrarAlChat(p){
-  return p.creador===perfil.nombre || p.confirmados.includes(perfil.nombre);
+   p.creador===perfil.nombre || p.confirmados.includes(perfil.nombre);
 }
 
 /* INIT */
