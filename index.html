@@ -11,7 +11,7 @@ body { margin:0; font-family:Arial; background:#111; color:white; text-align:cen
 
 .card {
   width: 320px;
-  margin: auto;
+  margin: 20px auto;
   background: #1c1c1c;
   border-radius: 20px;
   padding: 15px;
@@ -25,6 +25,14 @@ body { margin:0; font-family:Arial; background:#111; color:white; text-align:cen
   background-size: cover;
   border-radius: 15px;
   margin-bottom: 10px;
+}
+  button {
+  margin: 10px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 16px;
 }
 
 h3 { margin: 5px 0; }
@@ -179,10 +187,10 @@ function render(){
         👨‍🔧 ${p.creador}
       </p>
 
-      <div>
-        <button class="no" onclick="next()">❌</button>
-        <button class="yes" onclick="match()">✅</button>
-      </div>
+      <div style="margin-top:15px;">
+  <button class="no" onclick="next()">❌</button>
+  <button class="yes" onclick="match()">✅</button>
+</div>
 
       ${puedeEntrarAlChat(p) ? `<button onclick="verChat()">💬 Chat</button>` : ""}
 
