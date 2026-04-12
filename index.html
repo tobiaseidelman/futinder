@@ -75,9 +75,6 @@ input { margin:5px; padding:8px; }
   <input id="jugadores" placeholder="Jugadores"><br>
   <button onclick="crearPartido()">Crear</button>
   <button onclick="irHome()">Volver</button>
-  function verPerfilCreador(nombre){
-  alert("Perfil de " + nombre);
-}
 </div>
 
 <!-- PERFIL -->
@@ -162,14 +159,22 @@ function actualizarBadge(){
   badge.innerText = n>0 ? `(${n})` : "";
 }
 
+  function verPerfilCreador(nombre){
+  alert("Perfil de " + nombre);
+}
+
 /* HOME */
 function render(){
   actualizarBadge();
+
+  let card = document.getElementById("card");
 
   if(partidos.length===0){
     card.innerHTML="No hay partidos";
     return;
   }
+
+  
 
   let p = partidos[index];
 
@@ -196,6 +201,7 @@ card.innerHTML = `
 
   </div>
 `;
+}
 
 function next(){ index=(index+1)%partidos.length; render(); }
 
@@ -409,11 +415,6 @@ if(!perfil){
 } else {
   render();
 }
-
-</script>
-
-</body>
-</html>
 
 </script>
 
