@@ -197,19 +197,23 @@ function render(){
         <button class="no" onclick="next()">❌</button>
         <button class="yes" onclick="match()">✅</button>
       </div>
+     </div>
+     `;
 
-}
+      
+ 
+
   actualizarBadge();
 
   if(partidos.length===0){
     card.innerHTML="No hay partidos";
-    return;
-  }
+    return; 
+
 let p = partidos[index];
 
   card.innerHTML = `
-    <div class="card">
-
+  <div class="card"></div>
+`;
       <div class="imagen"></div>
 
       <h3>${p.cancha}</h3>
