@@ -173,7 +173,7 @@ function render(){
 
   let p = partidos[index];
 
- card.innerHTML=`
+card.innerHTML = `
   <div class="card">
 
     <div class="imagen"></div>
@@ -193,13 +193,9 @@ function render(){
     <button class="yes" onclick="match()">✅</button>
 
     ${puedeEntrarAlChat(p) ? `<button onclick="verChat()">💬 Chat</button>` : ""}
+
   </div>
 `;
-      <button class="yes" onclick="match()">✅</button>
-
-      ${puedeEntrarAlChat(p) ? `<button onclick="verChat()">💬 Chat</button>` : ""}
-    </div>`;
-}
 
 function next(){ index=(index+1)%partidos.length; render(); }
 
