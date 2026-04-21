@@ -387,7 +387,10 @@ function verNotificaciones(){
   let html = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <h2 style="margin:0;">Notificaciones</h2>
-      <button onclick="limpiarNotificaciones()" style="background:#222; color:white;">🗑️</button>
+      <button onclick="limpiarNotificaciones()" 
+      style="background:#333; color:white; font-size:20px; padding:8px; border-radius:10px;">
+      🗑️
+      </button>
     </div>
   `;
 
@@ -395,12 +398,17 @@ function verNotificaciones(){
     html += "<p>Sin notificaciones</p>";
   } else {
     notificaciones.forEach((n,i)=>{
-      html+=`
+      html += `
         <p onclick="abrirNotificacion(${i})">
           ${n.visto ? "" : "🔴"} ${n.texto}
-        </p>`;
+        </p>
+      `;
     });
   }
+
+  listaNotificaciones.innerHTML = html;
+  cambiarPantalla("notificaciones");
+}
 
   listaNotificaciones.innerHTML = html;
   cambiarPantalla("notificaciones");
