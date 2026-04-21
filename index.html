@@ -208,8 +208,36 @@ function next(){ index=(index+1)%partidos.length; render(); }
 function match(){
   let p = partidos[index];
 
-  p.solicitudes.push({...perfil});
+  // ❌ no hacer nada si sos el creador
+  if(p.creador === perfil.nombre){
+    alert("Este partido es tuyo");
+    return;
+  }
 
+  // ❌ evitar duplicados
+  let yaSolicito = p.solicitudes.some(s => s.nombre === perfil.nombre);
+  if(yaSolicito){
+    alert("Ya mandaste solicitud");
+    return;
+  }
+
+  p.solicitudes.push({...perfil});
+  
+let existeNotif = notificaciones.some(n => 
+  n.tipo === "solicitud" &&
+  n.partidoIndex === index &&
+  n.texto.includes(perfil.nombre)
+);
+
+if(!existeNotif){
+  notificaciones.push({
+    tipo:"solicitud",
+    texto:`${perfil.nombre} quiere unirse a ${p.cancha}`,
+    partidoIndex:index,
+    visto:false
+  });
+}
+  
   notificaciones.push({
     tipo:"solicitud",
     texto:`${perfil.nombre} quiere unirse a ${p.cancha}`,
