@@ -392,14 +392,13 @@ function abrirNotificacion(i){
     verChat();
   }
 }
-
-  function limpiarNotificaciones(){
+  
+function limpiarNotificaciones(){
   notificaciones = [];
   guardar();
   actualizarBadge();
   verNotificaciones();
 }
-
 /* PERFIL */
 function verPerfil(){
   nombrePerfil.innerText=perfil.nombre;
