@@ -393,6 +393,13 @@ function abrirNotificacion(i){
   }
 }
 
+  function limpiarNotificaciones(){
+  notificaciones = [];
+  guardar();
+  actualizarBadge();
+  verNotificaciones();
+}
+
 /* PERFIL */
 function verPerfil(){
   nombrePerfil.innerText=perfil.nombre;
