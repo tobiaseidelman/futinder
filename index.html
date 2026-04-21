@@ -41,6 +41,24 @@ button { margin:5px; padding:10px; border:none; border-radius:10px; cursor:point
 input { margin:5px; padding:8px; }
 
 .badge { color:red; font-weight:bold; }
+
+  .topbar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:10px;
+}
+
+.topbar button {
+  background:#222;
+  border:none;
+  border-radius:50%;
+  width:40px;
+  height:40px;
+  font-size:18px;
+  color:white;
+  cursor:pointer;
+}
 </style>
 </head>
   
@@ -366,16 +384,25 @@ function rechazar(i){
 
 /* NOTIFICACIONES */
 function verNotificaciones(){
-  let html="";
+  let html = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h2 style="margin:0;">Notificaciones</h2>
+      <button onclick="limpiarNotificaciones()" style="background:#222; color:white;">🗑️</button>
+    </div>
+  `;
 
-  notificaciones.forEach((n,i)=>{
-    html+=`
-      <p onclick="abrirNotificacion(${i})">
-        ${n.visto ? "" : "🔴"} ${n.texto}
-      </p>`;
-  });
+  if(notificaciones.length === 0){
+    html += "<p>Sin notificaciones</p>";
+  } else {
+    notificaciones.forEach((n,i)=>{
+      html+=`
+        <p onclick="abrirNotificacion(${i})">
+          ${n.visto ? "" : "🔴"} ${n.texto}
+        </p>`;
+    });
+  }
 
-  listaNotificaciones.innerHTML = html || "Sin notificaciones";
+  listaNotificaciones.innerHTML = html;
   cambiarPantalla("notificaciones");
 }
 
