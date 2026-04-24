@@ -76,8 +76,8 @@ input { margin:5px; padding:8px; }
   <h2>⚽ Futinder</h2>
   <div id="card"></div>
 
-  <button onclick="cambiarPantalla('crear')">
-  <button onclick="verPerfil()">👤 Perfil</button>
+  <button onclick="cambiarPantalla('crear')">➕ Crear</button>
+<button onclick="verPerfil()">👤 Perfil</button>
   <button onclick="verMisPartidos()">👨‍🔧 Mis partidos</button>
   <button onclick="verNotificaciones()">
     🔔 <span id="badge"></span>
@@ -256,13 +256,6 @@ if(!existeNotif){
   });
 }
   
-  notificaciones.push({
-    tipo:"solicitud",
-    texto:`${perfil.nombre} quiere unirse a ${p.cancha}`,
-    partidoIndex:index,
-    visto:false
-  });
-
   guardar();
   render();
 }
@@ -400,11 +393,13 @@ function verNotificaciones(){
           ${n.visto ? "" : "🔴"} ${n.texto}
         </p>`;
     });
-  
+  }  ← ESTA LLAVE FALTABA
 
   listaNotificaciones.innerHTML = html;
   cambiarPantalla("notificaciones");
 }
+
+
 
 function abrirNotificacion(i){
   let n=notificaciones[i];
