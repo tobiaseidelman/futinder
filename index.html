@@ -387,13 +387,13 @@ function verNotificaciones(){
   if(notificaciones.length === 0){
     html += "<p>Sin notificaciones</p>";
   } else {
-    notificaciones.forEach((n,i)=>{
+    notificaciones.forEach((n,i)=> {
       html+=`
         <p onclick="abrirNotificacion(${i})">
           ${n.visto ? "" : "🔴"} ${n.texto}
         </p>`;
     });
-  }  
+   
 
   listaNotificaciones.innerHTML = html;
   cambiarPantalla("notificaciones");
