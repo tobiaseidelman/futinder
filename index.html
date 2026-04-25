@@ -249,16 +249,16 @@ let existeNotif = notificaciones.some(n =>
 
 if(!existeNotif){
   notificaciones.push({
-    tipo:"solicitud",
-    texto:`${perfil.nombre} quiere unirse a ${p.cancha}`,
-    partidoIndex:index,
-    visto:false
-  });
+  tipo:"solicitud",
+  texto:`${perfil.nombre} quiere unirse a ${p.cancha}`,
+  partidoIndex:index,
+  visto:false,
+  para: p.creador 
+});
 }
-  
   guardar();
   render();
-}
+
 
 /* CREAR */
 function crearPartido(){
@@ -358,12 +358,12 @@ function aceptar(i){
   p.jugadores++;
 
   notificaciones.push({
-    tipo:"aceptado",
-    texto:`Te aceptaron en ${p.cancha}`,
-    partidoIndex:index,
-    visto:false
-  });
-
+  tipo:"aceptado",
+  texto:`Te aceptaron en ${p.cancha}`,
+  partidoIndex:index,
+  visto:false,
+  para: jugador.nombre 
+});
   p.solicitudes.splice(i,1);
   guardar();
   verCreador();
