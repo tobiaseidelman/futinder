@@ -520,7 +520,7 @@
 <!-- FIREBASE -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBfMEhIaroFjf3dOHAXnTeolwJdi2kEQyQ",
@@ -534,19 +534,32 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ---- ESTADO LOCAL ----
+// ---- ESTADO ----
 let partidos = [];
 let perfil = JSON.parse(localStorage.getItem("perfil")) || null;
-let notificaciones = JSON.parse(localStorage.getItem("notificaciones")) || [];
+let notificaciones = [];
 let idx = 0;
 let tipoSel = '5', durSel = '1:30h', posSel = '', posEditSel = '';
-let chatUnsub = null;
+let chatUnsub = null, notifUnsub = null;
 
 function guardarPerfil_local(){
   localStorage.setItem("perfil", JSON.stringify(perfil));
 }
-function guardarNotif(){
-  localStorage.setItem("notificaciones", JSON.stringify(notificaciones));
+
+// ---- NOTIFICACIONES EN TIEMPO REAL ----
+function iniciarNotificaciones(){
+  if(!perfil) return;
+  if(notifUnsub) notifUnsub();
+  const nq = query(
+    collection(db, "notificaciones"),
+    where("para", "==", perfil.nombre),
+    orderBy("creadoEn", "desc")
+  );
+  notifUnsub = onSnapshot(nq, (snap) => {
+    notificaciones = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    actualizarBadge();
+    if(document.getElementById("notificaciones").classList.contains("active")) verNotificaciones();
+  });
 }
 
 // ---- ESCUCHAR PARTIDOS EN TIEMPO REAL ----
@@ -556,8 +569,11 @@ onSnapshot(q, (snap) => {
   if(document.getElementById("home").classList.contains("active")) render();
   if(document.getElementById("misPartidos").classList.contains("active")) verMisPartidos();
   document.getElementById("loading").style.display = "none";
-  if(!perfil) cambiarPantalla("crearPerfil");
-  else if(!document.querySelector(".screen.active:not(#loading)")) cambiarPantalla("home");
+  if(!perfil){ cambiarPantalla("crearPerfil"); }
+  else {
+    iniciarNotificaciones();
+    if(!document.querySelector(".screen.active:not(#loading)")) cambiarPantalla("home");
+  }
 });
 
 // ---- NAV ----
@@ -670,8 +686,16 @@ window.match = async () => {
   let nuevasSolicitudes = [...(p.solicitudes||[]), {...perfil}];
   await updateDoc(doc(db, "partidos", p.id), { solicitudes: nuevasSolicitudes });
 
-  notificaciones.push({ tipo:"solicitud", texto:`${perfil.nombre} quiere unirse a ${p.cancha}`, partidoId: p.id, visto:false });
-  guardarNotif();
+  // Notificación al creador en Firebase
+  await addDoc(collection(db, "notificaciones"), {
+    para: p.creador,
+    tipo: "solicitud",
+    texto: `${perfil.nombre} quiere unirse a ${p.cancha}`,
+    partidoId: p.id,
+    visto: false,
+    creadoEn: serverTimestamp()
+  });
+
   render();
   alert("¡Solicitud enviada! ✅");
 };
@@ -706,6 +730,7 @@ window.crearPerfil = () => {
   if(!posSel){ alert("Elegí tu posición"); return; }
   perfil = { nombre:n, posicion:posSel, bio:document.getElementById("bioNueva").value, zona:document.getElementById("zonaNueva").value, partidos:0, rating:0 };
   guardarPerfil_local();
+  iniciarNotificaciones();
   irHome();
 };
 
@@ -825,8 +850,15 @@ window.aceptar = async (i) => {
     solicitudes: nuevasSol,
     jugadores: p.jugadores + 1
   });
-  notificaciones.push({ tipo:"aceptado", texto:`Aceptaste a ${jugador.nombre} en ${p.cancha}`, partidoId:p.id, visto:false });
-  guardarNotif();
+  // Notificación al jugador aceptado
+  await addDoc(collection(db, "notificaciones"), {
+    para: jugador.nombre,
+    tipo: "aceptado",
+    texto: `¡Te aceptaron en ${p.cancha}! Podés entrar al chat.`,
+    partidoId: p.id,
+    visto: false,
+    creadoEn: serverTimestamp()
+  });
   verDetalle(idx);
 };
 
@@ -879,31 +911,37 @@ window.enviarMensaje = async () => {
 window.verNotificaciones = () => {
   let html = notificaciones.length === 0
     ? `<div class="empty"><div class="empty-icon">🔔</div><div class="empty-text">Sin notificaciones</div></div>`
-    : [...notificaciones].reverse().map((n,ri) => {
-        let i = notificaciones.length-1-ri;
-        return `<div class="notif-item" onclick="abrirNotificacion(${i})">
+    : notificaciones.map((n) => `
+        <div class="notif-item" onclick="abrirNotificacion('${n.id}')">
           <div class="notif-dot ${n.visto?'visto':''}"></div>
           <div>
             <div class="notif-text">${n.texto}</div>
             <div class="notif-sub">${n.tipo==='solicitud'?'Solicitud de partido':'Aceptado en partido'}</div>
           </div>
-        </div>`;
-      }).join('');
+        </div>`).join('');
   document.getElementById("listaNotificaciones").innerHTML = html;
   cambiarPantalla("notificaciones");
 };
 
-window.abrirNotificacion = (i) => {
-  notificaciones[i].visto = true;
-  guardarNotif();
-  let n = notificaciones[i];
+window.abrirNotificacion = async (notifId) => {
+  let n = notificaciones.find(x => x.id === notifId);
+  if(!n) return;
+  // Marcar como visto en Firebase
+  await updateDoc(doc(db, "notificaciones", notifId), { visto: true });
   let pi = partidos.findIndex(p => p.id === n.partidoId);
-  if(pi >= 0){ idx = pi; if(n.tipo==="solicitud") verDetalle(idx); else abrirChatIdx(idx); }
-  else irHome();
+  if(pi >= 0){
+    idx = pi;
+    if(n.tipo === "solicitud") verMisPartidos(); // lleva al creador a sus partidos
+    else abrirChatIdx(idx);
+  } else irHome();
 };
 
-window.limpiarNotificaciones = () => {
-  notificaciones = []; guardarNotif(); actualizarBadge(); verNotificaciones();
+window.limpiarNotificaciones = async () => {
+  for(let n of notificaciones){
+    await deleteDoc(doc(db, "notificaciones", n.id));
+  }
+  actualizarBadge();
+  verNotificaciones();
 };
 
 // ---- MODAL JUGADOR ----
@@ -958,7 +996,7 @@ window.verOpinionesPropias = () => renderOpiniones(perfil.nombre, () => verMiPer
 
 // ---- INIT ----
 setTimeout(() => {
-  if(partidos.length === 0 && document.getElementById("loading").style.display !== "none"){
+  if(document.getElementById("loading").style.display !== "none"){
     document.getElementById("loading").style.display = "none";
     if(!perfil) cambiarPantalla("crearPerfil");
     else cambiarPantalla("home");
