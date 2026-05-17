@@ -875,6 +875,12 @@ window.abrirChatPartido = () => abrirChatIdx(idx);
 window.abrirChatIdx = (i) => {
   idx = i;
   let p = partidos[i];
+  let esCreador = perfil && p.creador === perfil.nombre;
+  let confirmado = perfil && (p.confirmados||[]).includes(perfil.nombre);
+  if(!esCreador && !confirmado){
+    alert("Solo pueden entrar al chat el creador y los jugadores confirmados.");
+    return;
+  }
   document.getElementById("chatTitle").textContent = p.cancha;
   if(chatUnsub) chatUnsub();
   const chatQ = query(collection(db,"partidos",p.id,"mensajes"), orderBy("hora","asc"));
