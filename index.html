@@ -550,9 +550,9 @@ function guardarPerfil_local(){
 function iniciarNotificaciones(){
   if(!perfil) return;
   if(notifUnsub) notifUnsub();
+  // Usar subcolección por usuario para evitar necesitar índice compuesto
   const nq = query(
-    collection(db, "notificaciones"),
-    where("para", "==", perfil.nombre),
+    collection(db, "usuarios", perfil.nombre, "notificaciones"),
     orderBy("creadoEn", "desc")
   );
   notifUnsub = onSnapshot(nq, (snap) => {
@@ -628,8 +628,14 @@ window.render = () => {
     card.innerHTML = `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No hay partidos disponibles.<br>¡Creá el primero!</div></div>`;
     return;
   }
-  if(idx >= partidos.length) idx = 0;
-  let p = partidos[idx];
+  // Filtrar partidos propios
+  let partidosFiltrados = perfil ? partidos.filter(p => p.creador !== perfil.nombre) : partidos;
+  if(partidosFiltrados.length === 0){
+    card.innerHTML = `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No hay partidos disponibles.<br>¡Creá el primero!</div></div>`;
+    return;
+  }
+  if(idx >= partidosFiltrados.length) idx = 0;
+  let p = partidosFiltrados[idx];
   let fill = Math.round((p.jugadores / p.max) * 100);
   let esCreador = perfil && p.creador === perfil.nombre;
   let confirmado = perfil && p.confirmados && p.confirmados.includes(perfil.nombre);
@@ -674,11 +680,16 @@ window.render = () => {
 };
 
 window.toggleDist = () => document.getElementById("distPopup").classList.toggle("show");
-window.next = () => { idx = (idx+1) % partidos.length; render(); };
+window.next = () => {
+  let filtrados = perfil ? partidos.filter(p => p.creador !== perfil.nombre) : partidos;
+  idx = (idx+1) % Math.max(filtrados.length, 1);
+  render();
+};
 
 window.match = async () => {
   if(!perfil) return;
-  let p = partidos[idx];
+  let filtrados = perfil ? partidos.filter(p => p.creador !== perfil.nombre) : partidos;
+  let p = filtrados[idx];
   if(p.creador === perfil.nombre){ alert("Este partido es tuyo"); return; }
   if((p.solicitudes||[]).some(s => s.nombre === perfil.nombre)){ alert("Ya mandaste solicitud"); return; }
   if((p.confirmados||[]).includes(perfil.nombre)){ alert("Ya estás confirmado"); return; }
@@ -687,8 +698,7 @@ window.match = async () => {
   await updateDoc(doc(db, "partidos", p.id), { solicitudes: nuevasSolicitudes });
 
   // Notificación al creador en Firebase
-  await addDoc(collection(db, "notificaciones"), {
-    para: p.creador,
+  await addDoc(collection(db, "usuarios", p.creador, "notificaciones"), {
     tipo: "solicitud",
     texto: `${perfil.nombre} quiere unirse a ${p.cancha}`,
     partidoId: p.id,
@@ -851,8 +861,7 @@ window.aceptar = async (i) => {
     jugadores: p.jugadores + 1
   });
   // Notificación al jugador aceptado
-  await addDoc(collection(db, "notificaciones"), {
-    para: jugador.nombre,
+  await addDoc(collection(db, "usuarios", jugador.nombre, "notificaciones"), {
     tipo: "aceptado",
     texto: `¡Te aceptaron en ${p.cancha}! Podés entrar al chat.`,
     partidoId: p.id,
@@ -933,7 +942,7 @@ window.abrirNotificacion = async (notifId) => {
   let n = notificaciones.find(x => x.id === notifId);
   if(!n) return;
   // Marcar como visto en Firebase
-  await updateDoc(doc(db, "notificaciones", notifId), { visto: true });
+  await updateDoc(doc(db, "usuarios", perfil.nombre, "notificaciones", notifId), { visto: true });
   let pi = partidos.findIndex(p => p.id === n.partidoId);
   if(pi >= 0){
     idx = pi;
@@ -944,7 +953,7 @@ window.abrirNotificacion = async (notifId) => {
 
 window.limpiarNotificaciones = async () => {
   for(let n of notificaciones){
-    await deleteDoc(doc(db, "notificaciones", n.id));
+    await deleteDoc(doc(db, "usuarios", perfil.nombre, "notificaciones", n.id));
   }
   actualizarBadge();
   verNotificaciones();
@@ -952,25 +961,31 @@ window.limpiarNotificaciones = async () => {
 
 // ---- MODAL JUGADOR ----
 window.abrirPerfilJugador = (nombre) => {
+  // Buscar si es el perfil propio para mostrar datos reales
+  let esPropio = perfil && perfil.nombre === nombre;
+  let partidos_count = esPropio ? (perfil.partidos || 0) : '-';
+  let rating = esPropio ? (perfil.partidos > 0 ? perfil.rating.toFixed(1) : 'Sin rating') : 'Sin rating';
+  let bio = esPropio ? (perfil.bio || 'Sin bio') : 'Sin bio';
+  let zona = esPropio ? (perfil.zona || 'Sin zona') : 'Sin zona';
+  let pos = esPropio ? (perfil.posicion || '') : '';
+
   document.getElementById("modalContent").innerHTML = `
     <div class="modal-perfil-header">
       <div class="modal-avatar">${nombre[0].toUpperCase()}</div>
       <div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;">${nombre}</div>
-        <div style="font-size:13px;color:var(--text-muted);"><span class="stars">★★★★½</span> 4.5</div>
+        ${pos ? `<div style="display:inline-block;background:var(--green);color:#000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-top:4px;">${pos}</div>` : ''}
       </div>
     </div>
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-num">23</div><div class="stat-label">Partidos</div></div>
-      <div class="stat-card"><div class="stat-num">4.5</div><div class="stat-label">Reputación</div></div>
-      <div class="stat-card"><div class="stat-num">18</div><div class="stat-label">Opiniones</div></div>
+      <div class="stat-card"><div class="stat-num">${partidos_count}</div><div class="stat-label">Partidos</div></div>
+      <div class="stat-card"><div class="stat-num">${rating}</div><div class="stat-label">Reputación</div></div>
+      <div class="stat-card"><div class="stat-num">-</div><div class="stat-label">Opiniones</div></div>
     </div>
-    <p class="section-title" style="margin-top:16px;">Opiniones destacadas</p>
-    <div>
-      <span class="opinion-tag">👍 Puntual</span>
-      <span class="opinion-tag">⚽ Juega en equipo</span>
-      <span class="opinion-tag">🙌 Buena onda</span>
-    </div>`;
+    <p class="section-title" style="margin-top:16px;">Bio</p>
+    <div class="bio-text">${bio}</div>
+    <p class="section-title" style="margin-top:12px;">Zona</p>
+    <div class="zona-row">📍 ${zona}</div>`;
   document.getElementById("modalJugador").classList.add("show");
 };
 window.cerrarModal = () => document.getElementById("modalJugador").classList.remove("show");
