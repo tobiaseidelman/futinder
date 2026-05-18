@@ -505,8 +505,9 @@
     <div class="confirmados-list" id="listaConfirmados"></div>
     <div style="padding:0 20px 8px; margin-top:16px;"><p class="section-title">Solicitudes</p></div>
     <div id="listaSolicitudes"></div>
-    <div style="padding:16px 20px;">
+    <div style="padding:16px 20px; display:flex; flex-direction:column; gap:10px;">
       <button class="submit-btn" onclick="abrirChatPartido()" style="background:var(--surface);color:var(--green);border:1px solid var(--green);">💬 Ir al chat</button>
+      <button class="submit-btn" onclick="cancelarPartido()" style="background:#1a0000;color:var(--red);border:1px solid #400;">🚫 Cancelar partido</button>
     </div>
   </div>
 </div>
@@ -988,6 +989,33 @@ window.rechazar = async (i) => {
   verDetalle(idx);
 };
 
+window.cancelarPartido = async () => {
+  let p = partidos[idx];
+  let confirmados = p.confirmados || [];
+  
+  if(!confirm(`¿Cancelar el partido en ${p.cancha}? Se notificará a todos los jugadores confirmados.`)) return;
+
+  // Notificar a cada jugador confirmado
+  for(let nombre of confirmados){
+    // Buscar uid del jugador en solicitudes o confirmados
+    let jugadorData = (p.solicitudes||[]).find(s => s.nombre === nombre);
+    let uid = jugadorData ? jugadorData.uid : null;
+    if(uid){
+      await addDoc(collection(db, "usuarios", uid, "notificaciones"), {
+        tipo: "cancelado",
+        texto: `El partido en ${p.cancha} (${p.hora}) fue cancelado por el creador.`,
+        partidoId: p.id,
+        visto: false,
+        creadoEn: serverTimestamp()
+      });
+    }
+  }
+
+  // Borrar el partido
+  await deleteDoc(doc(db, "partidos", p.id));
+  verMisPartidos();
+};
+
 // ---- CHAT EN TIEMPO REAL ----
 window.abrirChatPartido = () => abrirChatIdx(idx);
 window.abrirChatIdx = (i) => {
@@ -1040,7 +1068,7 @@ window.verNotificaciones = () => {
           <div class="notif-dot ${n.visto?'visto':''}"></div>
           <div>
             <div class="notif-text">${n.texto}</div>
-            <div class="notif-sub">${n.tipo==='solicitud'?'Solicitud de partido':'Aceptado en partido'}</div>
+            <div class="notif-sub">${n.tipo==='solicitud'?'Solicitud de partido':n.tipo==='cancelado'?'Partido cancelado':'Aceptado en partido'}</div>
           </div>
         </div>`).join('');
   document.getElementById("listaNotificaciones").innerHTML = html;
