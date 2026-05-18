@@ -221,6 +221,23 @@
   .opinion-tag { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border-radius: 20px; padding: 7px 13px; font-size: 13px; margin: 4px; border: 1px solid #222; }
 
   .mis-partidos-list { padding: 0 20px; flex: 1; overflow-y: auto; padding-bottom: 100px; }
+
+  .tabs {
+    display: flex;
+    margin: 0 20px 16px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    gap: 4px;
+  }
+  .tab-btn {
+    flex: 1; padding: 10px; border: none;
+    border-radius: 8px;
+    background: none; color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .tab-btn.active { background: var(--surface3); color: var(--green); }
   .partido-item { background: var(--surface); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 12px; border: 1px solid #222; cursor: pointer; }
   .partido-item:active { border-color: var(--green); }
   .partido-item-title { font-weight: 600; font-size: 16px; margin-bottom: 4px; }
@@ -462,6 +479,10 @@
     <button class="back-btn" onclick="irHome()">←</button>
     <div class="topbar-title">Mis partidos</div>
     <div style="width:42px"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-creados" onclick="switchTab('creados')">⚽ Creados</button>
+    <button class="tab-btn" id="tab-confirmados" onclick="switchTab('confirmados')">✅ Confirmados</button>
   </div>
   <div class="mis-partidos-list" id="listaPartidos"></div>
   <nav class="navbar">
@@ -857,31 +878,53 @@ window.guardarPerfil = async () => {
 };
 
 // ---- MIS PARTIDOS ----
-window.verMisPartidos = () => {
+let tabActual = 'creados';
+
+window.switchTab = (tab) => {
+  tabActual = tab;
+  document.getElementById("tab-creados").classList.toggle("active", tab === 'creados');
+  document.getElementById("tab-confirmados").classList.toggle("active", tab === 'confirmados');
+  renderTabPartidos();
+};
+
+function renderTabPartidos(){
   let html = '';
-  let mios = partidos.filter(p => p.creador === perfil.nombre);
-  let conf = partidos.filter(p => p.confirmados && p.confirmados.includes(perfil.nombre));
-  if(mios.length===0 && conf.length===0){
-    html = `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No tenés partidos todavía.</div></div>`;
+  if(tabActual === 'creados'){
+    let mios = partidos.filter(p => p.creadorUid === usuario.uid || p.creador === perfil.nombre);
+    if(mios.length === 0){
+      html = `<div class="empty"><div class="empty-icon">➕</div><div class="empty-text">No creaste ningún partido todavía.</div></div>`;
+    }
+    mios.forEach(p => {
+      let ri = partidos.indexOf(p);
+      let pend = (p.solicitudes||[]).length;
+      html += `<div class="partido-item" onclick="verDetalle(${ri})">
+        <div class="partido-item-title">${p.cancha}${pend>0?`<span class="solicitudes-badge">${pend}</span>`:''}</div>
+        <div class="partido-item-sub">🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
+        <div class="partido-item-sub" style="margin-top:4px;">👨‍🔧 Creador · ${pend} solicitud${pend!==1?'es':''} pendiente${pend!==1?'s':''}</div>
+      </div>`;
+    });
+  } else {
+    let conf = partidos.filter(p => p.confirmados && p.confirmados.includes(perfil.nombre));
+    if(conf.length === 0){
+      html = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Todavía no fuiste confirmado en ningún partido.</div></div>`;
+    }
+    conf.forEach(p => {
+      let ri = partidos.indexOf(p);
+      html += `<div class="partido-item" onclick="abrirChatIdx(${ri})">
+        <div class="partido-item-title">${p.cancha}</div>
+        <div class="partido-item-sub">🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
+        <div class="partido-item-sub" style="margin-top:4px;">✅ Confirmado · 💬 Ver chat</div>
+      </div>`;
+    });
   }
-  mios.forEach(p => {
-    let ri = partidos.indexOf(p);
-    let pend = (p.solicitudes||[]).length;
-    html += `<div class="partido-item" onclick="verDetalle(${ri})">
-      <div class="partido-item-title">${p.cancha}${pend>0?`<span class="solicitudes-badge">${pend}</span>`:''}</div>
-      <div class="partido-item-sub">🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
-      <div class="partido-item-sub" style="margin-top:4px;">Creador · ${pend} solicitud${pend!==1?'es':''} pendiente${pend!==1?'s':''}</div>
-    </div>`;
-  });
-  conf.forEach(p => {
-    let ri = partidos.indexOf(p);
-    html += `<div class="partido-item" onclick="abrirChatIdx(${ri})">
-      <div class="partido-item-title">${p.cancha}</div>
-      <div class="partido-item-sub">🕓 ${p.hora} · ⚽ Fútbol ${p.tipo}</div>
-      <div class="partido-item-sub" style="margin-top:4px;">Confirmado · 💬 Ver chat</div>
-    </div>`;
-  });
   document.getElementById("listaPartidos").innerHTML = html;
+}
+
+window.verMisPartidos = () => {
+  tabActual = 'creados';
+  document.getElementById("tab-creados").classList.add("active");
+  document.getElementById("tab-confirmados").classList.remove("active");
+  renderTabPartidos();
   cambiarPantalla("misPartidos");
 };
 
