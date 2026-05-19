@@ -222,6 +222,27 @@
 
   .mis-partidos-list { padding: 0 20px; flex: 1; overflow-y: auto; padding-bottom: 100px; }
 
+  .cancha-selector {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .cancha-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid #333;
+    border-radius: var(--radius-sm); padding: 12px;
+    cursor: pointer; transition: border-color 0.2s;
+  }
+  .cancha-item.selected { border-color: var(--green); background: #001a00; }
+  .cancha-item:active { border-color: var(--green); }
+  .cancha-thumb {
+    width: 56px; height: 56px; border-radius: 8px;
+    object-fit: cover; flex-shrink: 0;
+    background: var(--surface3);
+  }
+  .cancha-info { flex: 1; }
+  .cancha-nombre { font-weight: 600; font-size: 15px; }
+  .cancha-dir { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .cancha-tipo { display: inline-block; background: var(--green); color: #000; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-top: 4px; }
+
   .tabs {
     display: flex;
     margin: 0 20px 16px;
@@ -385,8 +406,8 @@
   </div>
   <div class="form-screen">
     <div class="form-group">
-      <label class="form-label">📍 Cancha</label>
-      <input class="form-input" id="cancha" placeholder="Nombre de la cancha">
+      <label class="form-label">📍 Elegí la cancha</label>
+      <div class="cancha-selector" id="canchaSelector"></div>
     </div>
     <div class="form-group">
       <label class="form-label">🕓 Horario</label>
@@ -400,13 +421,9 @@
         <button class="tipo-btn" onclick="selDur(this,'2h')">2 horas</button>
       </div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="tipoDisplay" style="display:none;">
       <label class="form-label">⚽ Tipo de fútbol</label>
-      <div class="tipo-grid">
-        <button class="tipo-btn selected" onclick="selTipo(this,'5')">Fútbol 5</button>
-        <button class="tipo-btn" onclick="selTipo(this,'7')">Fútbol 7</button>
-        <button class="tipo-btn" onclick="selTipo(this,'11')">Fútbol 11</button>
-      </div>
+      <div class="form-input" id="tipoMostrado" style="color:var(--text-muted);">Se define por la cancha</div>
     </div>
     <div class="form-group">
       <label class="form-label">👥 ¿Cuántos ya son?</label>
@@ -574,6 +591,94 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
+// ---- CANCHAS PREGUARDADAS ----
+const CANCHAS = [
+  {
+    id: 'cortita',
+    nombre: 'Cortita y al pie',
+    direccion: 'Cno. Carrasco 4980, Malvín Norte',
+    tipo: '5',
+    lat: -34.8889,
+    lng: -56.0867,
+    foto: 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=400'
+  },
+  {
+    id: 'yacht',
+    nombre: 'Yacht',
+    direccion: 'Av. Prof. E. Peluffo s/n, Buceo',
+    tipo: '7',
+    lat: -34.9089,
+    lng: -56.1234,
+    foto: 'https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400'
+  },
+  {
+    id: 'central5',
+    nombre: 'Central 5',
+    direccion: 'Av. Dr. Ricaldoni 2875, Parque Batlle',
+    tipo: '5',
+    lat: -34.8997,
+    lng: -56.1456,
+    foto: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400'
+  },
+  {
+    id: 'sport11',
+    nombre: 'Sport 11',
+    direccion: 'Cno. O'Higgins 8590, Paso de la Arena',
+    tipo: '11',
+    lat: -34.8456,
+    lng: -56.2789,
+    foto: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400'
+  }
+];
+
+let canchaSeleccionada = null;
+let userLat = null, userLng = null;
+
+function calcularDistancia(lat1, lng1, lat2, lng2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+    Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+    Math.sin(dLng/2)*Math.sin(dLng/2);
+  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return (R*c).toFixed(1);
+}
+
+function renderCanchaSelector(){
+  const cont = document.getElementById("canchaSelector");
+  if(!cont) return;
+  cont.innerHTML = CANCHAS.map(c => {
+    let dist = (userLat && userLng) ? `📍 ${calcularDistancia(userLat, userLng, c.lat, c.lng)} km` : '';
+    return `
+      <div class="cancha-item ${canchaSeleccionada?.id===c.id?'selected':''}" onclick="selCancha('${c.id}')">
+        <img class="cancha-thumb" src="${c.foto}" alt="${c.nombre}" onerror="this.style.background='var(--surface3)'">
+        <div class="cancha-info">
+          <div class="cancha-nombre">${c.nombre} <span style="font-weight:400;color:var(--text-muted);font-size:13px;">(Fútbol ${c.tipo})</span></div>
+          <div class="cancha-dir">${c.direccion}</div>
+          ${dist ? `<div style="font-size:12px;color:var(--green);margin-top:2px;">${dist}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+window.selCancha = (id) => {
+  canchaSeleccionada = CANCHAS.find(c => c.id === id);
+  tipoSel = canchaSeleccionada.tipo;
+  renderCanchaSelector();
+};
+
+// Pedir ubicación del usuario
+function pedirUbicacion(){
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos => {
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+      renderCanchaSelector();
+    }, () => {});
+  }
+}
+
 // ---- ESTADO ----
 let partidos = [];
 let perfil = null;
@@ -718,11 +823,13 @@ window.render = () => {
       <div class="swipe-overlay yes">QUIERO ✅</div>
       <div class="swipe-overlay no">❌ PASO</div>
       <div class="card-img">
-        <div class="card-img-bg"></div>
+        <div class="card-img-bg" style="background-image:url('${p.canchaFoto||'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600'}')"></div>
         <div class="card-img-overlay">
           <div class="card-cancha-name" onclick="toggleDist()">${p.cancha}</div>
         </div>
-        <div class="distance-popup" id="distPopup">📍 2.1 km &nbsp; 🕒 10 min</div>
+        <div class="distance-popup" id="distPopup">
+          ${(userLat&&userLng&&p.canchaLat)?`📍 ${calcularDistancia(userLat,userLng,p.canchaLat,p.canchaLng)} km`:'📍 Ubicación no disponible'}
+        </div>
       </div>
       <div class="card-body">
         <div class="card-row">
@@ -734,7 +841,10 @@ window.render = () => {
           <div class="jugadores-label"><span>👥 Jugadores</span><span>${p.jugadores}/${p.max}</span></div>
           <div class="bar-bg"><div class="bar-fill" style="width:${fill}%"></div></div>
         </div>
-        <div class="card-row"><div class="card-tag">💰 <span>$${p.precio||0} / persona</span></div></div>
+        <div class="card-row">
+          <div class="card-tag">💰 <span>$${p.precio||0} / persona</span></div>
+          ${p.canchaDireccion?`<div class="card-tag" style="font-size:11px;">📍 <span>${p.canchaDireccion}</span></div>`:''}
+        </div>
         <div class="creador-row" onclick="abrirPerfilJugador('${p.creadorUid}','${p.creador}')">
           <div class="creador-avatar">${p.creador?p.creador[0].toUpperCase():'?'}</div>
           <div class="creador-info">
@@ -786,25 +896,42 @@ window.match = async () => {
 
 // ---- CREAR PARTIDO ----
 window.selTipo = (btn, t) => { tipoSel=t; btn.parentElement.querySelectorAll(".tipo-btn").forEach(b=>b.classList.remove("selected")); btn.classList.add("selected"); };
+
+// Init crear screen
+const origCambiarPantalla = window.cambiarPantalla;
+window.cambiarPantalla = (id) => {
+  origCambiarPantalla(id);
+  if(id === 'crear'){
+    pedirUbicacion();
+    renderCanchaSelector();
+  }
+};
 window.selDur = (btn, d) => { durSel=d; btn.parentElement.querySelectorAll(".tipo-btn").forEach(b=>b.classList.remove("selected")); btn.classList.add("selected"); };
 window.selPos = (btn, p) => { posSel=p; btn.parentElement.querySelectorAll(".tipo-btn").forEach(b=>b.classList.remove("selected")); btn.classList.add("selected"); };
 window.selPosEdit = (btn, p) => { posEditSel=p; btn.parentElement.querySelectorAll(".tipo-btn").forEach(b=>b.classList.remove("selected")); btn.classList.add("selected"); };
 
 window.crearPartido = async () => {
-  let c = document.getElementById("cancha").value.trim();
+  if(!canchaSeleccionada){ alert("Elegí una cancha"); return; }
   let h = document.getElementById("hora").value;
   let j = parseInt(document.getElementById("jugadores").value);
   let pr = document.getElementById("precio").value;
-  if(!c||!h||!j){ alert("Completá todos los campos"); return; }
+  if(!h||!j){ alert("Completá todos los campos"); return; }
   let max = tipoSel==='11'?22:tipoSel==='7'?14:10;
   await addDoc(collection(db,"partidos"), {
-    cancha:c, hora:h, tipo:tipoSel, duracion:durSel,
+    cancha: canchaSeleccionada.nombre,
+    canchaId: canchaSeleccionada.id,
+    canchaFoto: canchaSeleccionada.foto,
+    canchaDireccion: canchaSeleccionada.direccion,
+    canchaLat: canchaSeleccionada.lat,
+    canchaLng: canchaSeleccionada.lng,
+    hora:h, tipo:tipoSel, duracion:durSel,
     jugadores:j, max, precio:pr||0,
     creador:perfil.nombre,
     creadorUid: usuario.uid,
     solicitudes:[], confirmados:[], mensajes:[],
     creadoEn: serverTimestamp()
   });
+  canchaSeleccionada = null;
   irHome();
 };
 
@@ -1153,6 +1280,8 @@ function renderOpiniones(nombre, backFn){
 window.verOpinionesPropias = () => renderOpiniones(perfil.nombre, () => verMiPerfil());
 
 // ---- INIT ----
+// Pedir ubicación al cargar
+pedirUbicacion();
 // El flujo de inicio lo maneja onAuthStateChanged arriba
 
 </script>
