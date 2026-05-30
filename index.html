@@ -410,6 +410,10 @@
       <div class="cancha-selector" id="canchaSelector"></div>
     </div>
     <div class="form-group">
+      <label class="form-label">📅 Fecha</label>
+      <input class="form-input" id="fecha" type="date">
+    </div>
+    <div class="form-group">
       <label class="form-label">🕓 Horario</label>
       <input class="form-input" id="hora" type="time" value="17:00">
     </div>
@@ -807,8 +811,13 @@ window.render = () => {
     card.innerHTML = `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No hay partidos disponibles.<br>¡Creá el primero!</div></div>`;
     return;
   }
-  // Filtrar partidos propios
-  let partidosFiltrados = perfil ? partidos.filter(p => p.creador !== perfil.nombre) : partidos;
+  // Filtrar partidos propios y ya iniciados
+  let ahora = Date.now();
+  let partidosFiltrados = partidos.filter(p => {
+    if(perfil && p.creador === perfil.nombre) return false; // no mostrar los propios
+    if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false; // no mostrar iniciados
+    return true;
+  });
   if(partidosFiltrados.length === 0){
     card.innerHTML = `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No hay partidos disponibles.<br>¡Creá el primero!</div></div>`;
     return;
@@ -833,6 +842,7 @@ window.render = () => {
       </div>
       <div class="card-body">
         <div class="card-row">
+          ${p.fecha?`<div class="card-tag">📅 <span>${p.fecha}</span></div>`:''}
           <div class="card-tag">🕓 <span>${p.hora}</span></div>
           <div class="card-tag">⏱️ <span>${p.duracion||'1h'}</span></div>
           <div class="card-tag">⚽ <span>Fútbol ${p.tipo}</span></div>
@@ -865,14 +875,24 @@ window.render = () => {
 
 window.toggleDist = () => document.getElementById("distPopup").classList.toggle("show");
 window.next = () => {
-  let filtrados = perfil ? partidos.filter(p => p.creador !== perfil.nombre) : partidos;
+  let ahora = Date.now();
+  let filtrados = partidos.filter(p => {
+    if(perfil && p.creador === perfil.nombre) return false;
+    if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
+    return true;
+  });
   idx = (idx+1) % Math.max(filtrados.length, 1);
   render();
 };
 
 window.match = async () => {
   if(!perfil) return;
-  let filtrados = perfil ? partidos.filter(p => p.creador !== perfil.nombre) : partidos;
+  let ahora = Date.now();
+  let filtrados = partidos.filter(p => {
+    if(p.creador === perfil.nombre) return false;
+    if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
+    return true;
+  });
   let p = filtrados[idx];
   if(p.creador === perfil.nombre){ alert("Este partido es tuyo"); return; }
   if((p.solicitudes||[]).some(s => s.nombre === perfil.nombre)){ alert("Ya mandaste solicitud"); return; }
@@ -904,6 +924,9 @@ window.cambiarPantalla = (id) => {
   if(id === 'crear'){
     pedirUbicacion();
     renderCanchaSelector();
+    const hoyStr = new Date().toISOString().split('T')[0];
+    const fi = document.getElementById("fecha");
+    if(fi && !fi.value) fi.value = hoyStr;
   }
 };
 window.selDur = (btn, d) => { durSel=d; btn.parentElement.querySelectorAll(".tipo-btn").forEach(b=>b.classList.remove("selected")); btn.classList.add("selected"); };
@@ -913,9 +936,16 @@ window.selPosEdit = (btn, p) => { posEditSel=p; btn.parentElement.querySelectorA
 window.crearPartido = async () => {
   if(!canchaSeleccionada){ alert("Elegí una cancha"); return; }
   let h = document.getElementById("hora").value;
+  let f = document.getElementById("fecha").value;
   let j = parseInt(document.getElementById("jugadores").value);
   let pr = document.getElementById("precio").value;
-  if(!h||!j){ alert("Completá todos los campos"); return; }
+  if(!h||!f||!j){ alert("Completá todos los campos"); return; }
+
+  // Calcular timestamps de inicio y fin
+  let durMinutos = durSel === '2h' ? 120 : durSel === '1:30h' ? 90 : 60;
+  let inicioDate = new Date(`${f}T${h}:00`);
+  let finDate = new Date(inicioDate.getTime() + durMinutos * 60000);
+
   let max = tipoSel==='11'?22:tipoSel==='7'?14:10;
   await addDoc(collection(db,"partidos"), {
     cancha: canchaSeleccionada.nombre,
@@ -924,11 +954,14 @@ window.crearPartido = async () => {
     canchaDireccion: canchaSeleccionada.direccion,
     canchaLat: canchaSeleccionada.lat,
     canchaLng: canchaSeleccionada.lng,
-    hora:h, tipo:tipoSel, duracion:durSel,
+    hora:h, fecha:f, tipo:tipoSel, duracion:durSel,
+    inicioTimestamp: inicioDate.getTime(),
+    finTimestamp: finDate.getTime(),
     jugadores:j, max, precio:pr||0,
     creador:perfil.nombre,
     creadorUid: usuario.uid,
     solicitudes:[], confirmados:[], mensajes:[],
+    estado: 'activo',
     creadoEn: serverTimestamp()
   });
   canchaSeleccionada = null;
@@ -1015,6 +1048,20 @@ window.switchTab = (tab) => {
   renderTabPartidos();
 };
 
+function getEstadoPartido(p){
+  let ahora = Date.now();
+  if(!p.inicioTimestamp) return 'activo';
+  if(ahora >= p.finTimestamp) return 'finalizado';
+  if(ahora >= p.inicioTimestamp) return 'en curso';
+  return 'activo';
+}
+
+function estadoBadge(estado){
+  if(estado === 'finalizado') return `<span style="background:#333;color:#888;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:8px;">Finalizado</span>`;
+  if(estado === 'en curso') return `<span style="background:#003300;color:var(--green);font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:8px;">En curso</span>`;
+  return '';
+}
+
 function renderTabPartidos(){
   let html = '';
   if(tabActual === 'creados'){
@@ -1025,10 +1072,12 @@ function renderTabPartidos(){
     mios.forEach(p => {
       let ri = partidos.indexOf(p);
       let pend = (p.solicitudes||[]).length;
+      let estado = getEstadoPartido(p);
+      let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
       html += `<div class="partido-item" onclick="verDetalle(${ri})">
-        <div class="partido-item-title">${p.cancha}${pend>0?`<span class="solicitudes-badge">${pend}</span>`:''}</div>
-        <div class="partido-item-sub">🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
-        <div class="partido-item-sub" style="margin-top:4px;">👨‍🔧 Creador · ${pend} solicitud${pend!==1?'es':''} pendiente${pend!==1?'s':''}</div>
+        <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}${estado==='activo'&&pend>0?`<span class="solicitudes-badge">${pend}</span>`:''}</div>
+        <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
+        <div class="partido-item-sub" style="margin-top:4px;">👨‍🔧 Creador · ${estado==='activo'?`${pend} solicitud${pend!==1?'es':''} pendiente${pend!==1?'s':''}`:estado}</div>
       </div>`;
     });
   } else {
@@ -1038,9 +1087,11 @@ function renderTabPartidos(){
     }
     conf.forEach(p => {
       let ri = partidos.indexOf(p);
+      let estado = getEstadoPartido(p);
+      let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
       html += `<div class="partido-item" onclick="abrirChatIdx(${ri})">
-        <div class="partido-item-title">${p.cancha}</div>
-        <div class="partido-item-sub">🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
+        <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}</div>
+        <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
         <div class="partido-item-sub" style="margin-top:4px;">✅ Confirmado · 💬 Ver chat</div>
       </div>`;
     });
@@ -1282,6 +1333,10 @@ window.verOpinionesPropias = () => renderOpiniones(perfil.nombre, () => verMiPer
 // ---- INIT ----
 // Pedir ubicación al cargar
 pedirUbicacion();
+// Setear fecha default a hoy
+const hoy = new Date().toISOString().split('T')[0];
+const fechaInput = document.getElementById("fecha");
+if(fechaInput) fechaInput.value = hoy;
 // El flujo de inicio lo maneja onAuthStateChanged arriba
 
 </script>
