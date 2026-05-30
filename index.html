@@ -902,13 +902,14 @@ window.render = () => {
     card.innerHTML = `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No hay partidos disponibles.<br>¡Creá el primero!</div></div>`;
     return;
   }
-  // Filtrar partidos propios, ya iniciados, o donde ya participás
+  // Filtrar partidos propios, ya iniciados, llenos, o donde ya participás
   let ahora = Date.now();
   let partidosFiltrados = partidos.filter(p => {
     if(perfil && p.creador === perfil.nombre) return false;
     if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
     if(perfil && (p.solicitudes||[]).some(s => s.nombre === perfil.nombre)) return false;
     if(perfil && (p.confirmados||[]).includes(perfil.nombre)) return false;
+    if(p.jugadores >= p.max) return false; // partido lleno
     return true;
   });
   if(partidosFiltrados.length === 0){
@@ -974,6 +975,7 @@ window.next = () => {
     if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
     if(perfil && (p.solicitudes||[]).some(s => s.nombre === perfil.nombre)) return false;
     if(perfil && (p.confirmados||[]).includes(perfil.nombre)) return false;
+    if(p.jugadores >= p.max) return false;
     return true;
   });
   idx = (idx+1) % Math.max(filtrados.length, 1);
@@ -988,6 +990,7 @@ window.match = async () => {
     if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
     if((p.solicitudes||[]).some(s => s.nombre === perfil.nombre)) return false;
     if((p.confirmados||[]).includes(perfil.nombre)) return false;
+    if(p.jugadores >= p.max) return false;
     return true;
   });
   let p = filtrados[idx];
