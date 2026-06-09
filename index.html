@@ -585,6 +585,14 @@
   <div style="flex:1; overflow-y:auto; padding:0 20px 80px;" id="opinionesContent"></div>
 </div>
 
+<!-- MODAL RATING -->
+<div class="modal-overlay" id="modalRating" onclick="cerrarModalRating()">
+  <div class="modal-sheet" onclick="event.stopPropagation()" style="max-height:90vh;">
+    <div class="modal-handle"></div>
+    <div id="modalRatingContent"></div>
+  </div>
+</div>
+
 <!-- MODAL JUGADOR -->
 <div class="modal-overlay" id="modalJugador" onclick="cerrarModal()">
   <div class="modal-sheet" onclick="event.stopPropagation()">
@@ -715,6 +723,30 @@ const CANCHAS = [
     foto: 'https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=400'
   }
 ];
+
+// ---- TAGS SISTEMA ----
+const TAGS = [
+  { id: 'puntual',        emoji: '⏰', label: 'Puntual',           tipo: 'bueno',  opuesto: 'llega_tarde' },
+  { id: 'llega_tarde',    emoji: '⏰', label: 'Llega tarde',        tipo: 'malo',   opuesto: 'puntual' },
+  { id: 'equipo',         emoji: '⚽', label: 'Juega en equipo',    tipo: 'bueno',  opuesto: 'no_pasa' },
+  { id: 'no_pasa',        emoji: '❌', label: 'No la pasa',         tipo: 'malo',   opuesto: 'equipo' },
+  { id: 'buena_onda',     emoji: '🙌', label: 'Buena onda',         tipo: 'bueno',  opuesto: 'mala_onda' },
+  { id: 'mala_onda',      emoji: '😤', label: 'Mala onda',          tipo: 'malo',   opuesto: 'buena_onda' },
+  { id: 'corre',          emoji: '💪', label: 'Corre todo el partido', tipo: 'bueno', opuesto: 'no_corre' },
+  { id: 'no_corre',       emoji: '🦥', label: 'No corre',           tipo: 'malo',   opuesto: 'corre' },
+  { id: 'define',         emoji: '🎯', label: 'Define bien',        tipo: 'bueno',  opuesto: 'no_define' },
+  { id: 'no_define',      emoji: '😬', label: 'No define',          tipo: 'malo',   opuesto: 'define' },
+  { id: 'pases',          emoji: '🎯', label: 'Buenos pases',       tipo: 'bueno',  opuesto: 'malos_pases' },
+  { id: 'malos_pases',    emoji: '❌', label: 'Malos pases',        tipo: 'malo',   opuesto: 'pases' },
+  { id: 'habilidoso',     emoji: '🔥', label: 'Muy habilidoso',     tipo: 'bueno',  opuesto: 'falta_tecnica' },
+  { id: 'falta_tecnica',  emoji: '👎', label: 'Le falta técnica',   tipo: 'malo',   opuesto: 'habilidoso' },
+  { id: 'limpio',         emoji: '🤝', label: 'Juega limpio',       tipo: 'bueno',  opuesto: 'brusco' },
+  { id: 'brusco',         emoji: '🦶', label: 'Juega brusco',       tipo: 'malo',   opuesto: 'limpio' },
+  { id: 'ganas',          emoji: '🔥', label: 'Va con ganas',       tipo: 'bueno',  opuesto: 'sin_ganas' },
+  { id: 'sin_ganas',      emoji: '😒', label: 'Va sin ganas',       tipo: 'malo',   opuesto: 'ganas' },
+];
+const TAG_UMBRAL = 5; // tags para mostrarse en perfil
+const TAG_NOTIF_CADA = 3; // notificar cada X tags malos
 
 let canchaSeleccionada = null;
 let userLat = null, userLng = null;
@@ -1107,9 +1139,20 @@ window.verMiPerfil = () => {
       <span class="perfil-pos">${perfil.posicion||'Sin posición'}</span>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-num">${perfil.partidos||0}</div><div class="stat-label">Partidos</div></div>
-        <div class="stat-card"><div class="stat-num">${perfil.partidos?perfil.rating.toFixed(1):'-'}</div><div class="stat-label">Reputación</div></div>
-        <div class="stat-card" onclick="verOpinionesPropias()"><div class="stat-num">${perfil.partidos||0}</div><div class="stat-label">Opiniones</div></div>
+        <div class="stat-card"><div class="stat-num">${perfil.partidos&&perfil.rating?perfil.rating.toFixed(1):'-'}</div><div class="stat-label">Reputación</div></div>
+        <div class="stat-card"><div class="stat-num">${(perfil.tagsMostrar||[]).length}</div><div class="stat-label">Tags</div></div>
       </div>
+      ${(perfil.tagsMostrar||[]).length > 0 ? `
+      <p class="section-title">Tags</p>
+      <div style="display:flex;flex-wrap:wrap;margin-bottom:8px;">
+        ${(perfil.tagsMostrar||[]).map(tagId => {
+          let t = TAGS.find(x => x.id === tagId);
+          if(!t) return '';
+          let color = t.tipo === 'bueno' ? 'var(--green)' : 'var(--red)';
+          let bg = t.tipo === 'bueno' ? '#001a00' : '#1a0000';
+          return `<span style="display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:20px;margin:4px;font-size:13px;background:${bg};color:${color};">${t.emoji} ${t.label}</span>`;
+        }).join('')}
+      </div>` : ''}
       <p class="section-title">Bio</p>
       <div class="bio-text">${perfil.bio||'Sin bio todavía. ¡Editá tu perfil!'}</div>
       <p class="section-title">Zona</p>
@@ -1347,10 +1390,37 @@ window.verInfoPartido = (i) => {
         💬 Ir al chat
       </button>
       ${getBajarseBtnHTML(p, i)}
+      ${estado === 'finalizado' ? getRatingSeccionHTML(p) : ''}
     </div>`;
 
   cambiarPantalla("infoPartido");
 };
+
+function getRatingSeccionHTML(p){
+  let jugadoresACalificar = (p.confirmados||[]).filter(n => n !== perfil.nombre);
+  if(jugadoresACalificar.length === 0) return '';
+  let yaCalifique = (p.calificaciones||{})[perfil.nombre] || [];
+  
+  let html = `<div style="margin-top:20px;">
+    <p class="section-title">⭐ Calificar jugadores</p>`;
+  
+  jugadoresACalificar.forEach(nombre => {
+    let yaCalifique_este = yaCalifique.includes(nombre);
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #1a1a1a;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="mini-avatar">${nombre[0].toUpperCase()}</div>
+        <div style="font-weight:600;">${nombre}</div>
+      </div>
+      ${yaCalifique_este
+        ? `<span style="color:var(--green);font-size:13px;">✅ Calificado</span>`
+        : `<button onclick="abrirModalRating('${nombre}','${p.id}','${p.creadorUid}')" style="background:var(--surface2);border:1px solid #333;border-radius:8px;padding:8px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">⭐ Calificar</button>`
+      }
+    </div>`;
+  });
+  
+  html += `</div>`;
+  return html;
+}
 
 function getBajarseBtnHTML(p, i){
   let ahora = Date.now();
@@ -1505,6 +1575,176 @@ window.abrirPerfilJugador = async (uid, nombre) => {
   }
 };
 window.cerrarModal = () => document.getElementById("modalJugador").classList.remove("show");
+
+// ---- SISTEMA DE RATING ----
+let ratingActual = 0;
+let tagsSeleccionados = [];
+let ratingTarget = { nombre: '', partidoId: '', creadorUid: '' };
+
+window.abrirModalRating = (nombre, partidoId, creadorUid) => {
+  ratingActual = 0;
+  tagsSeleccionados = [];
+  ratingTarget = { nombre, partidoId, creadorUid };
+
+  renderModalRating();
+  document.getElementById("modalRating").classList.add("show");
+};
+
+window.cerrarModalRating = () => {
+  document.getElementById("modalRating").classList.remove("show");
+};
+
+function renderModalRating(){
+  let starsHTML = [1,2,3,4,5].map(n => `
+    <span onclick="selStar(${n})" style="font-size:36px;cursor:pointer;color:${n<=ratingActual?'#f5c518':'#333'};">★</span>
+  `).join('');
+
+  let tagsHTML = TAGS.map(t => {
+    let sel = tagsSeleccionados.includes(t.id);
+    let color = t.tipo === 'bueno' ? 'var(--green)' : 'var(--red)';
+    let bg = t.tipo === 'bueno' ? '#001a00' : '#1a0000';
+    let border = t.tipo === 'bueno' ? '#040' : '#400';
+    return `<span onclick="selTag('${t.id}')" style="display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:20px;margin:4px;font-size:13px;cursor:pointer;border:1px solid ${sel?border:'#333'};background:${sel?bg:'var(--surface2)'};color:${sel?color:'var(--text-muted)'};">
+      ${t.emoji} ${t.label}
+    </span>`;
+  }).join('');
+
+  document.getElementById("modalRatingContent").innerHTML = `
+    <div style="text-align:center;margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;">Calificar a ${ratingTarget.nombre}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Elegí estrellas y hasta 3 tags</div>
+    </div>
+    <div style="display:flex;justify-content:center;gap:8px;margin-bottom:20px;">${starsHTML}</div>
+    <p class="section-title">Tags (máximo 3)</p>
+    <div style="display:flex;flex-wrap:wrap;margin-bottom:20px;">${tagsHTML}</div>
+    <button onclick="enviarRating()" style="width:100%;padding:14px;background:var(--green);color:#000;border:none;border-radius:var(--radius-sm);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;cursor:pointer;">ENVIAR CALIFICACIÓN</button>
+  `;
+}
+
+window.selStar = (n) => {
+  ratingActual = n;
+  renderModalRating();
+};
+
+window.selTag = (id) => {
+  if(tagsSeleccionados.includes(id)){
+    tagsSeleccionados = tagsSeleccionados.filter(t => t !== id);
+  } else {
+    if(tagsSeleccionados.length >= 3){ alert("Máximo 3 tags"); return; }
+    tagsSeleccionados.push(id);
+  }
+  renderModalRating();
+};
+
+window.enviarRating = async () => {
+  if(ratingActual === 0){ alert("Elegí al menos una estrella"); return; }
+
+  let nombre = ratingTarget.nombre;
+  let partidoId = ratingTarget.partidoId;
+
+  // Buscar uid del jugador a calificar
+  let p = partidos.find(x => x.id === partidoId);
+  if(!p) return;
+
+  // Buscar uid en solicitudes
+  let jugadorData = (p.solicitudes||[]).find(s => s.nombre === nombre);
+  let targetUid = jugadorData?.uid || null;
+
+  // Buscar en usuarios de firebase por nombre
+  if(!targetUid){
+    // Buscar en confirmados del partido — intentar con creadorUid si es el creador
+    if(nombre === p.creador) targetUid = p.creadorUid;
+  }
+
+  // Guardar calificacion en el partido (para saber quién ya calificó a quién)
+  let calificaciones = p.calificaciones || {};
+  let misCalif = calificaciones[perfil.nombre] || [];
+  misCalif.push(nombre);
+  calificaciones[perfil.nombre] = misCalif;
+  await updateDoc(doc(db, "partidos", partidoId), { calificaciones });
+
+  // Guardar rating en subcoleccion del jugador calificado
+  if(targetUid){
+    await addDoc(collection(db, "usuarios", targetUid, "ratings"), {
+      de: perfil.nombre,
+      deUid: usuario.uid,
+      estrellas: ratingActual,
+      tags: tagsSeleccionados,
+      partidoId,
+      fecha: serverTimestamp()
+    });
+
+    // Actualizar stats del jugador calificado
+    await actualizarStatsJugador(targetUid, ratingActual, tagsSeleccionados);
+  }
+
+  cerrarModalRating();
+  // Refrescar pantalla
+  let i = partidos.indexOf(p);
+  verInfoPartido(i);
+  alert("¡Calificación enviada! ✅");
+};
+
+async function actualizarStatsJugador(targetUid, estrellas, tags){
+  const perfilRef = doc(db, "usuarios", targetUid);
+  const snap = await getDoc(perfilRef);
+  if(!snap.exists()) return;
+  let datos = snap.data();
+
+  // Actualizar rating promedio
+  let totalPartidos = (datos.partidos || 0) + 1;
+  let ratingViejo = datos.rating || 0;
+  let nuevoRating = ((ratingViejo * (totalPartidos - 1)) + estrellas) / totalPartidos;
+
+  // Actualizar contadores de tags
+  let tagContadores = datos.tagContadores || {};
+  let tagsMostrar = datos.tagsMostrar || [];
+  let notifsPendientes = [];
+
+  for(let tagId of tags){
+    tagContadores[tagId] = (tagContadores[tagId] || 0) + 1;
+    let count = tagContadores[tagId];
+    let tagInfo = TAGS.find(t => t.id === tagId);
+
+    // Mostrar tag si supera umbral
+    if(count >= TAG_UMBRAL && !tagsMostrar.includes(tagId)){
+      tagsMostrar.push(tagId);
+    }
+
+    // Notificar tags malos en múltiplos de TAG_NOTIF_CADA
+    if(tagInfo && tagInfo.tipo === 'malo' && count % TAG_NOTIF_CADA === 0){
+      notifsPendientes.push({
+        tipo: 'tag_malo',
+        texto: `Recibiste ${count} veces el tag "${tagInfo.emoji} ${tagInfo.label}". ¡Intentá mejorar para la próxima!`,
+        visto: false,
+        creadoEn: serverTimestamp()
+      });
+    }
+
+    // Eliminar tag malo si el opuesto supera el doble
+    if(tagInfo && tagInfo.tipo === 'bueno'){
+      let opuestoId = tagInfo.opuesto;
+      let countMalo = tagContadores[opuestoId] || 0;
+      let countBueno = tagContadores[tagId] || 0;
+      if(countBueno >= countMalo * 2 && tagsMostrar.includes(opuestoId)){
+        tagsMostrar = tagsMostrar.filter(t => t !== opuestoId);
+      }
+    }
+  }
+
+  await setDoc(perfilRef, {
+    ...datos,
+    partidos: totalPartidos,
+    rating: nuevoRating,
+    tagContadores,
+    tagsMostrar
+  });
+
+  // Enviar notificaciones de tags malos
+  for(let notif of notifsPendientes){
+    await addDoc(collection(db, "usuarios", targetUid, "notificaciones"), notif);
+  }
+}
 
 // ---- OPINIONES ----
 const opinionesData = [
