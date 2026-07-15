@@ -538,6 +538,7 @@
       <button class="submit-btn" onclick="abrirChatPartido()" style="background:var(--surface);color:var(--green);border:1px solid var(--green);">💬 Ir al chat</button>
       <button class="submit-btn" onclick="cancelarPartido()" style="background:#1a0000;color:var(--red);border:1px solid #400;">🚫 Cancelar partido</button>
     </div>
+    <div id="creadorRatingBox" style="padding:0 20px;"></div>
   </div>
 </div>
 
@@ -1096,7 +1097,7 @@ window.crearPartido = async () => {
     jugadores:j, max, precio:pr||0,
     creador:perfil.nombre,
     creadorUid: usuario.uid,
-    solicitudes:[], confirmados:[], mensajes:[],
+    solicitudes:[], confirmados:[perfil.nombre], mensajes:[],
     estado: 'activo',
     creadoEn: serverTimestamp()
   });
@@ -1281,6 +1282,11 @@ window.verDetalle = (i) => {
         </div>
       </div>`).join('');
   document.getElementById("listaSolicitudes").innerHTML = htmlSol;
+
+  let estado = getEstadoPartido(p);
+  let ratingBox = document.getElementById("creadorRatingBox");
+  if(ratingBox) ratingBox.innerHTML = estado === 'finalizado' ? getRatingSeccionHTML(p) : '';
+
   cambiarPantalla("creador");
 };
 
