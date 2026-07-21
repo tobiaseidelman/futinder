@@ -538,7 +538,6 @@
       <button class="submit-btn" onclick="abrirChatPartido()" style="background:var(--surface);color:var(--green);border:1px solid var(--green);">💬 Ir al chat</button>
       <button class="submit-btn" onclick="cancelarPartido()" style="background:#1a0000;color:var(--red);border:1px solid #400;">🚫 Cancelar partido</button>
     </div>
-    <div id="creadorRatingBox" style="padding:0 20px;"></div>
   </div>
 </div>
 
@@ -605,7 +604,7 @@
 <!-- FIREBASE -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, query, orderBy, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, query, orderBy, where, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -880,7 +879,39 @@ function iniciarPartidos(){
     partidos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if(document.getElementById("home").classList.contains("active")) render();
     if(document.getElementById("misPartidos").classList.contains("active")) verMisPartidos();
+    chequearPartidosFinalizados();
   });
+}
+
+// ---- DETECTAR PARTIDOS RECIÉN FINALIZADOS: notificar a confirmados y sumar partido jugado ----
+// No hay backend corriendo solo (plan gratis de Firebase), así que esto se dispara
+// cuando cualquier usuario con la app abierta detecta un partido recién finalizado.
+// Se marca notifRatingEnviada:true para no mandar la notificación más de una vez.
+async function chequearPartidosFinalizados(){
+  for(let p of partidos){
+    if(getEstadoPartido(p) !== 'finalizado') continue;
+    if(p.notifRatingEnviada) continue;
+    if(!(p.confirmados||[]).length) continue;
+
+    try{
+      await updateDoc(doc(db, "partidos", p.id), { notifRatingEnviada: true });
+    }catch(e){ continue; } // otro cliente ya lo está procesando
+
+    for(let c of p.confirmados){
+      let uid = uidDeConfirmado(c);
+      if(!uid) continue; // partido viejo sin uid guardado
+      try{
+        await addDoc(collection(db, "usuarios", uid, "notificaciones"), {
+          tipo: "calificar",
+          texto: `El partido en ${p.cancha} terminó. ¡Calificá a tus compañeros!`,
+          partidoId: p.id,
+          visto: false,
+          creadoEn: serverTimestamp()
+        });
+        await updateDoc(doc(db, "usuarios", uid), { partidos: increment(1) });
+      }catch(e){ /* seguir con el resto aunque falle uno */ }
+    }
+  }
 }
 
 // ---- NAV ----
@@ -941,7 +972,7 @@ window.render = () => {
     if(perfil && p.creador === perfil.nombre) return false;
     if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
     if(perfil && (p.solicitudes||[]).some(s => s.nombre === perfil.nombre)) return false;
-    if(perfil && (p.confirmados||[]).includes(perfil.nombre)) return false;
+    if(perfil && (p.confirmados||[]).some(c => nombreDeConfirmado(c) === perfil.nombre)) return false;
     if(p.jugadores >= p.max) return false; // partido lleno
     return true;
   });
@@ -953,7 +984,7 @@ window.render = () => {
   let p = partidosFiltrados[idx];
   let fill = Math.round((p.jugadores / p.max) * 100);
   let esCreador = perfil && p.creador === perfil.nombre;
-  let confirmado = perfil && p.confirmados && p.confirmados.includes(perfil.nombre);
+  let confirmado = perfil && p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === perfil.nombre);
   card.innerHTML = `
     <div class="partido-card" style="position:relative;">
       <div class="swipe-overlay yes">QUIERO ✅</div>
@@ -1007,7 +1038,7 @@ window.next = () => {
     if(perfil && p.creador === perfil.nombre) return false;
     if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
     if(perfil && (p.solicitudes||[]).some(s => s.nombre === perfil.nombre)) return false;
-    if(perfil && (p.confirmados||[]).includes(perfil.nombre)) return false;
+    if(perfil && (p.confirmados||[]).some(c => nombreDeConfirmado(c) === perfil.nombre)) return false;
     if(p.jugadores >= p.max) return false;
     return true;
   });
@@ -1022,14 +1053,14 @@ window.match = async () => {
     if(p.creador === perfil.nombre) return false;
     if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
     if((p.solicitudes||[]).some(s => s.nombre === perfil.nombre)) return false;
-    if((p.confirmados||[]).includes(perfil.nombre)) return false;
+    if((p.confirmados||[]).some(c => nombreDeConfirmado(c) === perfil.nombre)) return false;
     if(p.jugadores >= p.max) return false;
     return true;
   });
   let p = filtrados[idx];
   if(p.creador === perfil.nombre){ alert("Este partido es tuyo"); return; }
   if((p.solicitudes||[]).some(s => s.nombre === perfil.nombre)){ alert("Ya mandaste solicitud"); return; }
-  if((p.confirmados||[]).includes(perfil.nombre)){ alert("Ya estás confirmado"); return; }
+  if((p.confirmados||[]).some(c => nombreDeConfirmado(c) === perfil.nombre)){ alert("Ya estás confirmado"); return; }
 
   let nuevasSolicitudes = [...(p.solicitudes||[]), {...perfil, uid: usuario.uid}];
   await updateDoc(doc(db, "partidos", p.id), { solicitudes: nuevasSolicitudes });
@@ -1097,7 +1128,7 @@ window.crearPartido = async () => {
     jugadores:j, max, precio:pr||0,
     creador:perfil.nombre,
     creadorUid: usuario.uid,
-    solicitudes:[], confirmados:[perfil.nombre], mensajes:[],
+    solicitudes:[], confirmados:[{nombre: perfil.nombre, uid: usuario.uid}], mensajes:[],
     estado: 'activo',
     creadoEn: serverTimestamp()
   });
@@ -1117,6 +1148,7 @@ window.crearPerfil = async () => {
     zona: document.getElementById("zonaNueva").value,
     partidos: 0,
     rating: 0,
+    calificacionesRecibidas: 0,
     uid: usuario.uid,
     foto: usuario.photoURL || null,
     email: usuario.email
@@ -1140,8 +1172,8 @@ window.verMiPerfil = () => {
       <span class="perfil-pos">${perfil.posicion||'Sin posición'}</span>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-num">${perfil.partidos||0}</div><div class="stat-label">Partidos</div></div>
-        <div class="stat-card"><div class="stat-num">${perfil.partidos&&perfil.rating?perfil.rating.toFixed(1):'-'}</div><div class="stat-label">Reputación</div></div>
-        <div class="stat-card"><div class="stat-num">${(perfil.tagsMostrar||[]).length}</div><div class="stat-label">Tags</div></div>
+        <div class="stat-card"><div class="stat-num">${perfil.calificacionesRecibidas?perfil.rating.toFixed(1):'-'}<span style="display:block;font-size:11px;color:var(--text-muted);font-weight:400;">(${perfil.calificacionesRecibidas||0})</span></div><div class="stat-label">Reputación</div></div>
+        <div class="stat-card" onclick="verOpinionesPropias()" style="cursor:pointer;"><div class="stat-num">${(perfil.tagsMostrar||[]).length}</div><div class="stat-label">Tags ›</div></div>
       </div>
       ${(perfil.tagsMostrar||[]).length > 0 ? `
       <p class="section-title">Tags</p>
@@ -1196,6 +1228,29 @@ window.switchTab = (tab) => {
   renderTabPartidos();
 };
 
+// Compatibilidad: partidos viejos guardan confirmados como string, los nuevos como {nombre,uid}
+function nombreDeConfirmado(c){ return typeof c === 'string' ? c : c.nombre; }
+function uidDeConfirmado(c){ return typeof c === 'string' ? null : c.uid; }
+
+function getConfirmadoItemHTML(c, p, estado){
+  let nombre = nombreDeConfirmado(c);
+  let esYo = nombre === perfil.nombre;
+  let yaCalifique = ((p.calificaciones||{})[perfil.nombre]||[]).includes(nombre);
+  let accion = '';
+  if(estado === 'finalizado' && !esYo){
+    accion = yaCalifique
+      ? `<span style="color:var(--green);font-size:12px;white-space:nowrap;">✅ Calificado</span>`
+      : `<button onclick="abrirModalRating('${nombre}','${p.id}','${p.creadorUid}')" style="background:var(--surface2);border:1px solid #333;border-radius:8px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">⭐ Calificar</button>`;
+  }
+  return `<div class="confirmado-item" style="justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="mini-avatar">${nombre[0].toUpperCase()}</div>
+      <div>${nombre}</div>
+    </div>
+    ${accion}
+  </div>`;
+}
+
 function getEstadoPartido(p){
   let ahora = Date.now();
   if(!p.inicioTimestamp) return 'activo';
@@ -1229,7 +1284,7 @@ function renderTabPartidos(){
       </div>`;
     });
   } else {
-    let conf = partidos.filter(p => p.confirmados && p.confirmados.includes(perfil.nombre));
+    let conf = partidos.filter(p => p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === perfil.nombre));
     if(conf.length === 0){
       html = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Todavía no fuiste confirmado en ningún partido.</div></div>`;
     }
@@ -1259,9 +1314,10 @@ window.verDetalle = (i) => {
   idx = i;
   let p = partidos[i];
   document.getElementById("creadorTitle").textContent = p.cancha;
+  let estadoCreador = getEstadoPartido(p);
   let htmlConf = (p.confirmados||[]).length === 0
     ? `<div style="padding:0 20px;color:var(--text-muted);font-size:14px;">Nadie confirmado todavía</div>`
-    : (p.confirmados||[]).map(n => `<div class="confirmado-item" style="padding:12px 20px;"><div class="mini-avatar">${n[0].toUpperCase()}</div><div>${n}</div></div>`).join('');
+    : (p.confirmados||[]).map(c => getConfirmadoItemHTML(c, p, estadoCreador)).join('');
   document.getElementById("listaConfirmados").innerHTML = htmlConf;
 
   let htmlSol = (p.solicitudes||[]).length === 0
@@ -1283,17 +1339,13 @@ window.verDetalle = (i) => {
       </div>`).join('');
   document.getElementById("listaSolicitudes").innerHTML = htmlSol;
 
-  let estado = getEstadoPartido(p);
-  let ratingBox = document.getElementById("creadorRatingBox");
-  if(ratingBox) ratingBox.innerHTML = estado === 'finalizado' ? getRatingSeccionHTML(p) : '';
-
   cambiarPantalla("creador");
 };
 
 window.aceptar = async (i) => {
   let p = partidos[idx];
   let jugador = p.solicitudes[i];
-  let nuevasConf = [...(p.confirmados||[]), jugador.nombre];
+  let nuevasConf = [...(p.confirmados||[]), {nombre: jugador.nombre, uid: jugador.uid}];
   let nuevasSol = [...p.solicitudes];
   nuevasSol.splice(i, 1);
   await updateDoc(doc(db,"partidos",p.id), {
@@ -1327,11 +1379,9 @@ window.cancelarPartido = async () => {
   if(!confirm(`¿Cancelar el partido en ${p.cancha}? Se notificará a todos los jugadores confirmados.`)) return;
 
   // Notificar a cada jugador confirmado
-  for(let nombre of confirmados){
-    // Buscar uid del jugador en solicitudes o confirmados
-    let jugadorData = (p.solicitudes||[]).find(s => s.nombre === nombre);
-    let uid = jugadorData ? jugadorData.uid : null;
-    if(uid){
+  for(let c of confirmados){
+    let uid = uidDeConfirmado(c);
+    if(uid && uid !== usuario.uid){
       await addDoc(collection(db, "usuarios", uid, "notificaciones"), {
         tipo: "cancelado",
         texto: `El partido en ${p.cancha} (${p.hora}) fue cancelado por el creador.`,
@@ -1360,11 +1410,7 @@ window.verInfoPartido = (i) => {
 
   let htmlConf = confirmados.length === 0
     ? `<div style="color:var(--text-muted);font-size:14px;padding:10px 0;">Nadie confirmado todavía</div>`
-    : confirmados.map(n => `
-        <div class="confirmado-item">
-          <div class="mini-avatar">${n[0].toUpperCase()}</div>
-          <div>${n}</div>
-        </div>`).join('');
+    : confirmados.map(c => getConfirmadoItemHTML(c, p, estado)).join('');
 
   document.getElementById("infoPartidoContent").innerHTML = `
     <div class="card-img" style="height:180px;">
@@ -1396,37 +1442,10 @@ window.verInfoPartido = (i) => {
         💬 Ir al chat
       </button>
       ${getBajarseBtnHTML(p, i)}
-      ${estado === 'finalizado' ? getRatingSeccionHTML(p) : ''}
     </div>`;
 
   cambiarPantalla("infoPartido");
 };
-
-function getRatingSeccionHTML(p){
-  let jugadoresACalificar = (p.confirmados||[]).filter(n => n !== perfil.nombre);
-  if(jugadoresACalificar.length === 0) return '';
-  let yaCalifique = (p.calificaciones||{})[perfil.nombre] || [];
-  
-  let html = `<div style="margin-top:20px;">
-    <p class="section-title">⭐ Calificar jugadores</p>`;
-  
-  jugadoresACalificar.forEach(nombre => {
-    let yaCalifique_este = yaCalifique.includes(nombre);
-    html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #1a1a1a;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div class="mini-avatar">${nombre[0].toUpperCase()}</div>
-        <div style="font-weight:600;">${nombre}</div>
-      </div>
-      ${yaCalifique_este
-        ? `<span style="color:var(--green);font-size:13px;">✅ Calificado</span>`
-        : `<button onclick="abrirModalRating('${nombre}','${p.id}','${p.creadorUid}')" style="background:var(--surface2);border:1px solid #333;border-radius:8px;padding:8px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">⭐ Calificar</button>`
-      }
-    </div>`;
-  });
-  
-  html += `</div>`;
-  return html;
-}
 
 function getBajarseBtnHTML(p, i){
   let ahora = Date.now();
@@ -1453,7 +1472,7 @@ window.bajarseDepartido = async (i) => {
   if(!confirm(`¿Confirmas que querés bajarte del partido en ${p.cancha}?`)) return;
 
   // Sacar de confirmados
-  let nuevosConf = (p.confirmados||[]).filter(n => n !== perfil.nombre);
+  let nuevosConf = (p.confirmados||[]).filter(c => nombreDeConfirmado(c) !== perfil.nombre);
   await updateDoc(doc(db, "partidos", p.id), {
     confirmados: nuevosConf,
     jugadores: Math.max((p.jugadores||1) - 1, 0)
@@ -1477,7 +1496,7 @@ window.abrirChatIdx = (i) => {
   idx = i;
   let p = partidos[i];
   let esCreador = perfil && p.creador === perfil.nombre;
-  let confirmado = perfil && (p.confirmados||[]).includes(perfil.nombre);
+  let confirmado = perfil && (p.confirmados||[]).some(c => nombreDeConfirmado(c) === perfil.nombre);
   if(!esCreador && !confirmado){
     alert("Solo pueden entrar al chat el creador y los jugadores confirmados.");
     return;
@@ -1523,7 +1542,7 @@ window.verNotificaciones = () => {
           <div class="notif-dot ${n.visto?'visto':''}"></div>
           <div>
             <div class="notif-text">${n.texto}</div>
-            <div class="notif-sub">${n.tipo==='solicitud'?'Solicitud de partido':n.tipo==='cancelado'?'Partido cancelado':n.tipo==='bajada'?'Jugador se bajó':'Aceptado en partido'}</div>
+            <div class="notif-sub">${n.tipo==='solicitud'?'Solicitud de partido':n.tipo==='cancelado'?'Partido cancelado':n.tipo==='bajada'?'Jugador se bajó':n.tipo==='calificar'?'Calificá a tus compañeros':'Aceptado en partido'}</div>
           </div>
         </div>`).join('');
   document.getElementById("listaNotificaciones").innerHTML = html;
@@ -1539,6 +1558,9 @@ window.abrirNotificacion = async (notifId) => {
   if(pi >= 0){
     idx = pi;
     if(n.tipo === "solicitud") verMisPartidos(); // lleva al creador a sus partidos
+    else if(n.tipo === "calificar"){
+      if(partidos[idx].creadorUid === usuario.uid) verDetalle(idx); else verInfoPartido(idx);
+    }
     else abrirChatIdx(idx);
   } else irHome();
 };
@@ -1569,8 +1591,8 @@ window.abrirPerfilJugador = async (uid, nombre) => {
       </div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-num">${p.partidos||0}</div><div class="stat-label">Partidos</div></div>
-        <div class="stat-card"><div class="stat-num">${p.partidos>0?p.rating.toFixed(1):'-'}</div><div class="stat-label">Reputación</div></div>
-        <div class="stat-card"><div class="stat-num">-</div><div class="stat-label">Opiniones</div></div>
+        <div class="stat-card"><div class="stat-num">${p.calificacionesRecibidas?p.rating.toFixed(1):'-'}<span style="display:block;font-size:11px;color:var(--text-muted);font-weight:400;">(${p.calificacionesRecibidas||0})</span></div><div class="stat-label">Reputación</div></div>
+        <div class="stat-card" onclick="cerrarModal();abrirOpiniones('${uid}','${p.nombre||nombre}',irHome)" style="cursor:pointer;"><div class="stat-num">${(p.tagsMostrar||[]).length}</div><div class="stat-label">Tags ›</div></div>
       </div>
       <p class="section-title" style="margin-top:16px;">Bio</p>
       <div class="bio-text">${p.bio||'Sin bio'}</div>
@@ -1652,15 +1674,10 @@ window.enviarRating = async () => {
   let p = partidos.find(x => x.id === partidoId);
   if(!p) return;
 
-  // Buscar uid en solicitudes
-  let jugadorData = (p.solicitudes||[]).find(s => s.nombre === nombre);
-  let targetUid = jugadorData?.uid || null;
-
-  // Buscar en usuarios de firebase por nombre
-  if(!targetUid){
-    // Buscar en confirmados del partido — intentar con creadorUid si es el creador
-    if(nombre === p.creador) targetUid = p.creadorUid;
-  }
+  // Buscar uid directo en confirmados (ya guarda nombre+uid)
+  let confirmadoData = (p.confirmados||[]).find(c => nombreDeConfirmado(c) === nombre);
+  let targetUid = confirmadoData ? uidDeConfirmado(confirmadoData) : null;
+  if(!targetUid && nombre === p.creador) targetUid = p.creadorUid;
 
   // Guardar calificacion en el partido (para saber quién ya calificó a quién)
   let calificaciones = p.calificaciones || {};
@@ -1685,9 +1702,9 @@ window.enviarRating = async () => {
   }
 
   cerrarModalRating();
-  // Refrescar pantalla
+  // Refrescar pantalla (creador ve "creador", el resto ve "infoPartido")
   let i = partidos.indexOf(p);
-  verInfoPartido(i);
+  if(p.creadorUid === usuario.uid) verDetalle(i); else verInfoPartido(i);
   alert("¡Calificación enviada! ✅");
 };
 
@@ -1697,10 +1714,10 @@ async function actualizarStatsJugador(targetUid, estrellas, tags){
   if(!snap.exists()) return;
   let datos = snap.data();
 
-  // Actualizar rating promedio
-  let totalPartidos = (datos.partidos || 0) + 1;
+  // Actualizar rating promedio (contador propio, independiente de partidos jugados)
+  let totalCalificaciones = (datos.calificacionesRecibidas || 0) + 1;
   let ratingViejo = datos.rating || 0;
-  let nuevoRating = ((ratingViejo * (totalPartidos - 1)) + estrellas) / totalPartidos;
+  let nuevoRating = ((ratingViejo * (totalCalificaciones - 1)) + estrellas) / totalCalificaciones;
 
   // Actualizar contadores de tags
   let tagContadores = datos.tagContadores || {};
@@ -1740,7 +1757,7 @@ async function actualizarStatsJugador(targetUid, estrellas, tags){
 
   await setDoc(perfilRef, {
     ...datos,
-    partidos: totalPartidos,
+    calificacionesRecibidas: totalCalificaciones,
     rating: nuevoRating,
     tagContadores,
     tagsMostrar
@@ -1752,30 +1769,54 @@ async function actualizarStatsJugador(targetUid, estrellas, tags){
   }
 }
 
-// ---- OPINIONES ----
-const opinionesData = [
-  {emoji:'👍',label:'Puntual',pct:80},{emoji:'⚽',label:'Juega en equipo',pct:75},
-  {emoji:'🔥',label:'Muy habilidoso',pct:70},{emoji:'💪',label:'Corre todo el partido',pct:65},
-  {emoji:'🙌',label:'Buena onda',pct:85},{emoji:'🧠',label:'Entiende el juego',pct:60},
-  {emoji:'🎯',label:'Define bien',pct:55},{emoji:'🎯',label:'Buenos pases',pct:68},
-];
-const opinionesTags = ['👍 Puntual','🔥 Muy habilidoso','😅 Morfeta','⚽ Juega en equipo','❌ No la pasa','🙌 Buena onda','⏰ Llega tarde'];
-
-function renderOpiniones(nombre, backFn){
+// ---- OPINIONES (tags con conteo real, ordenados de más a menos votados) ----
+async function abrirOpiniones(uid, nombre, backFn){
+  cambiarPantalla("opiniones");
   document.getElementById("opinionesTitle").textContent = nombre;
   document.getElementById("opinionesBackBtn").onclick = backFn;
+  document.getElementById("opinionesContent").innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">Cargando...</div>`;
+
+  let datos;
+  if(uid === usuario.uid){
+    datos = perfil;
+  } else {
+    const snap = await getDoc(doc(db, "usuarios", uid));
+    datos = snap.exists() ? snap.data() : {};
+  }
+  renderOpiniones(datos);
+}
+
+function renderOpiniones(datos){
+  let rating = datos.rating || 0;
+  let cantidad = datos.calificacionesRecibidas || 0;
+  let tagContadores = datos.tagContadores || {};
+
+  let tagsOrdenados = Object.keys(tagContadores)
+    .map(id => ({ ...TAGS.find(t => t.id === id), count: tagContadores[id] }))
+    .filter(t => t.id && t.count > 0)
+    .sort((a,b) => b.count - a.count);
+
+  let starsFull = Math.round(rating);
+  let starsHTML = '★'.repeat(starsFull) + '☆'.repeat(5 - starsFull);
+
   document.getElementById("opinionesContent").innerHTML = `
     <div style="display:flex;align-items:baseline;gap:10px;margin:20px 0;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--green);">4.5</div>
-      <div><div class="stars" style="font-size:18px;">★★★★½</div><div style="font-size:13px;color:var(--text-muted);">24 opiniones</div></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--green);">${cantidad>0?rating.toFixed(1):'-'}</div>
+      <div><div class="stars" style="font-size:18px;">${starsHTML}</div><div style="font-size:13px;color:var(--text-muted);">${cantidad} opinion${cantidad!==1?'es':''}</div></div>
     </div>
-    <p class="section-title">Resumen</p>
-    ${opinionesData.map(o=>`<div class="opinion-bar-row"><div class="opinion-bar-label">${o.emoji} ${o.label}</div><div class="opinion-bar-track"><div class="opinion-bar-fill" style="width:${o.pct}%"></div></div><div class="opinion-bar-pct">${o.pct}%</div></div>`).join('')}
-    <p class="section-title" style="margin-top:20px;">Todas las opiniones</p>
-    <div style="display:flex;flex-wrap:wrap;">${opinionesTags.map(t=>`<span class="opinion-tag">${t}</span>`).join('')}</div>`;
-  cambiarPantalla("opiniones");
+    <p class="section-title">Tags recibidos</p>
+    ${tagsOrdenados.length === 0
+      ? `<div style="color:var(--text-muted);font-size:14px;padding:10px 0;">Todavía no recibió tags</div>`
+      : tagsOrdenados.map(t => {
+          let color = t.tipo === 'bueno' ? 'var(--green)' : 'var(--red)';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #1a1a1a;">
+            <span>${t.emoji} ${t.label}</span>
+            <span style="color:${color};font-weight:600;">${t.count}</span>
+          </div>`;
+        }).join('')
+    }`;
 }
-window.verOpinionesPropias = () => renderOpiniones(perfil.nombre, () => verMiPerfil());
+window.verOpinionesPropias = () => abrirOpiniones(usuario.uid, perfil.nombre, verMiPerfil);
 
 // ---- INIT ----
 // Pedir ubicación al cargar
