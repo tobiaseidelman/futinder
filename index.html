@@ -1268,7 +1268,7 @@ function estadoBadge(estado){
 function renderTabPartidos(){
   let html = '';
   if(tabActual === 'creados'){
-    let mios = partidos.filter(p => p.creadorUid === usuario.uid || p.creador === perfil.nombre);
+    let mios = partidos.filter(p => (p.creadorUid === usuario.uid || p.creador === perfil.nombre) && !p.ocultoCreador);
     if(mios.length === 0){
       html = `<div class="empty"><div class="empty-icon">➕</div><div class="empty-text">No creaste ningún partido todavía.</div></div>`;
     }
@@ -1277,7 +1277,8 @@ function renderTabPartidos(){
       let pend = (p.solicitudes||[]).length;
       let estado = getEstadoPartido(p);
       let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
-      html += `<div class="partido-item" onclick="verDetalle(${ri})">
+      html += `<div class="partido-item" style="position:relative;" onclick="verDetalle(${ri})">
+        ${estado==='finalizado'?`<button onclick="event.stopPropagation();eliminarDeCreados('${p.id}')" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;">🗑️</button>`:''}
         <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}${estado==='activo'&&pend>0?`<span class="solicitudes-badge">${pend}</span>`:''}</div>
         <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
         <div class="partido-item-sub" style="margin-top:4px;">👨‍🔧 Creador · ${estado==='activo'?`${pend} solicitud${pend!==1?'es':''} pendiente${pend!==1?'s':''}`:estado}</div>
@@ -1301,6 +1302,12 @@ function renderTabPartidos(){
   }
   document.getElementById("listaPartidos").innerHTML = html;
 }
+
+window.eliminarDeCreados = async (partidoId) => {
+  if(!confirm("¿Eliminar este partido de tu lista? Los demás jugadores todavía van a poder verlo y calificar.")) return;
+  await updateDoc(doc(db, "partidos", partidoId), { ocultoCreador: true });
+  renderTabPartidos();
+};
 
 window.verMisPartidos = () => {
   tabActual = 'creados';
