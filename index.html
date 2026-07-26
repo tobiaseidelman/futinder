@@ -381,9 +381,14 @@
 <div id="home" class="screen">
   <div class="topbar">
     <div class="topbar-title">⚽ Futinder</div>
-    <button class="icon-btn" onclick="verNotificaciones()">
-      🔔 <span class="badge-dot" id="badgeDot"></span>
-    </button>
+    <div style="display:flex;gap:8px;">
+      <button class="icon-btn" onclick="abrirFiltros()">
+        🎛️ <span class="badge-dot" id="filtrosBadgeDot" style="display:none;"></span>
+      </button>
+      <button class="icon-btn" onclick="verNotificaciones()">
+        🔔 <span class="badge-dot" id="badgeDot"></span>
+      </button>
+    </div>
   </div>
   <div class="cards-area">
     <div id="card" style="width:100%; position:relative;"></div>
@@ -593,6 +598,56 @@
   </div>
 </div>
 
+<!-- MODAL FILTROS -->
+<div class="modal-overlay" id="modalFiltros" onclick="cerrarFiltros()">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;">FILTROS</div>
+      <button onclick="limpiarFiltros()" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;">Limpiar</button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">⚽ Tipo de fútbol</label>
+      <div class="tipo-grid" style="grid-template-columns:repeat(4,1fr);">
+        <button class="tipo-btn" id="filtroTipoTodos" onclick="selFiltroTipo(null)">Todos</button>
+        <button class="tipo-btn" onclick="selFiltroTipo('5')">F5</button>
+        <button class="tipo-btn" onclick="selFiltroTipo('7')">F7</button>
+        <button class="tipo-btn" onclick="selFiltroTipo('11')">F11</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">📍 Zona</label>
+      <div class="tipo-grid" style="grid-template-columns:repeat(2,1fr); margin-bottom:10px;">
+        <button class="tipo-btn" id="filtroZonaModoBarrio" onclick="selFiltroZonaModo('barrio')">Por barrio</button>
+        <button class="tipo-btn" id="filtroZonaModoDistancia" onclick="selFiltroZonaModo('distancia')">Por distancia</button>
+      </div>
+      <select class="form-input" id="filtroZonaSelect" onchange="aplicarFiltrosUI()">
+        <option value="">Todas las zonas</option>
+      </select>
+      <input class="form-input" id="filtroDistanciaInput" type="number" min="1" placeholder="Distancia máxima en km" style="display:none;" oninput="aplicarFiltrosUI()">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">💰 Precio máximo</label>
+      <input class="form-input" id="filtroPrecioInput" type="number" min="0" placeholder="Sin límite" oninput="aplicarFiltrosUI()">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">📅 Fecha</label>
+      <input class="form-input" id="filtroFechaInput" type="date" onchange="aplicarFiltrosUI()">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">🕓 Desde qué hora</label>
+      <input class="form-input" id="filtroHoraInput" type="time" onchange="aplicarFiltrosUI()">
+    </div>
+
+    <button class="submit-btn" onclick="cerrarFiltros()" style="margin-top:6px;">Ver partidos</button>
+  </div>
+</div>
+
 <!-- MODAL JUGADOR -->
 <div class="modal-overlay" id="modalJugador" onclick="cerrarModal()">
   <div class="modal-sheet" onclick="event.stopPropagation()">
@@ -627,6 +682,7 @@ const CANCHAS = [
     id: 'cortita',
     nombre: 'Cortita y al pie',
     direccion: 'Cno. Carrasco 4980, Malvín Norte',
+    zona: 'Malvín Norte',
     tipo: '5',
     lat: -34.8889,
     lng: -56.0867,
@@ -636,6 +692,7 @@ const CANCHAS = [
     id: 'yacht',
     nombre: 'Yacht',
     direccion: 'Av. Prof. E. Peluffo s/n, Buceo',
+    zona: 'Buceo',
     tipo: '7',
     lat: -34.9089,
     lng: -56.1234,
@@ -645,6 +702,7 @@ const CANCHAS = [
     id: 'central5',
     nombre: 'Central 5',
     direccion: 'Av. Dr. Ricaldoni 2875, Parque Batlle',
+    zona: 'Parque Batlle',
     tipo: '5',
     lat: -34.8997,
     lng: -56.1456,
@@ -654,6 +712,7 @@ const CANCHAS = [
     id: 'sport11',
     nombre: 'Sport 11',
     direccion: 'Cno. OHiggins 8590, Paso de la Arena',
+    zona: 'Paso de la Arena',
     tipo: '11',
     lat: -34.8456,
     lng: -56.2789,
@@ -663,6 +722,7 @@ const CANCHAS = [
     id: 'buceo5',
     nombre: 'Buceo 5',
     direccion: 'Av. Ing. Santiago Rivas 1548, Buceo',
+    zona: 'Buceo',
     tipo: '5',
     lat: -34.9056,
     lng: -56.1389,
@@ -672,6 +732,7 @@ const CANCHAS = [
     id: 'dryco',
     nombre: 'Dryco',
     direccion: 'Av. Gral. San Martin 2938, Sayago',
+    zona: 'Sayago',
     tipo: '5',
     lat: -34.8723,
     lng: -56.1876,
@@ -681,6 +742,7 @@ const CANCHAS = [
     id: 'centenario',
     nombre: 'Centenario',
     direccion: 'Luis A. de Herrera 2581 esq. 8 de Octubre, La Blanqueada',
+    zona: 'La Blanqueada',
     tipo: '5',
     lat: -34.8934,
     lng: -56.1567,
@@ -690,6 +752,7 @@ const CANCHAS = [
     id: 'campusprado',
     nombre: 'Campus Prado',
     direccion: 'Chuy 3474, Prado',
+    zona: 'Prado',
     tipo: '5',
     lat: -34.8712,
     lng: -56.1923,
@@ -699,6 +762,7 @@ const CANCHAS = [
     id: 'bostonriver',
     nombre: 'Boston River Futbol 5',
     direccion: 'Saladero Farino 3388, Manga',
+    zona: 'Manga',
     tipo: '5',
     lat: -34.8534,
     lng: -56.1234,
@@ -708,6 +772,7 @@ const CANCHAS = [
     id: 'guinda',
     nombre: 'Guinda',
     direccion: 'Barrio Prado, Montevideo',
+    zona: 'Prado',
     tipo: '7',
     lat: -34.8698,
     lng: -56.1945,
@@ -717,6 +782,7 @@ const CANCHAS = [
     id: 'centrogallego',
     nombre: 'Centro Gallego',
     direccion: 'Av. Italia 7504, Montevideo',
+    zona: 'Malvín',
     tipo: '11',
     lat: -34.8789,
     lng: -56.0923,
@@ -750,6 +816,87 @@ const TAG_NOTIF_CADA = 3; // notificar cada X tags malos
 
 let canchaSeleccionada = null;
 let userLat = null, userLng = null;
+
+// ---- FILTROS DEL HOME ----
+let filtros = { tipo: null, zonaModo: 'barrio', zona: '', distancia: null, precio: null, fecha: '', horaDesde: '' };
+
+window.abrirFiltros = () => {
+  // Cargar zonas disponibles (únicas, ordenadas) en el select
+  let zonasDisponibles = [...new Set(CANCHAS.map(c => c.zona))].sort();
+  let sel = document.getElementById("filtroZonaSelect");
+  sel.innerHTML = `<option value="">Todas las zonas</option>` + zonasDisponibles.map(z => `<option value="${z}">${z}</option>`).join('');
+  sel.value = filtros.zona;
+  document.getElementById("filtroDistanciaInput").value = filtros.distancia || '';
+  document.getElementById("filtroPrecioInput").value = filtros.precio || '';
+  document.getElementById("filtroFechaInput").value = filtros.fecha || '';
+  document.getElementById("filtroHoraInput").value = filtros.horaDesde || '';
+  selFiltroTipo(filtros.tipo, false);
+  selFiltroZonaModo(filtros.zonaModo, false);
+  document.getElementById("modalFiltros").classList.add("show");
+};
+window.cerrarFiltros = () => {
+  document.getElementById("modalFiltros").classList.remove("show");
+  render();
+};
+
+window.selFiltroTipo = (tipo, aplicar = true) => {
+  filtros.tipo = tipo;
+  document.querySelectorAll("#modalFiltros .tipo-grid")[0].querySelectorAll(".tipo-btn").forEach(b => b.classList.remove("selected"));
+  (tipo ? document.querySelector(`#modalFiltros .tipo-grid button[onclick="selFiltroTipo('${tipo}')"]`) : document.getElementById("filtroTipoTodos")).classList.add("selected");
+  if(aplicar) aplicarFiltrosUI();
+};
+
+window.selFiltroZonaModo = (modo, aplicar = true) => {
+  filtros.zonaModo = modo;
+  document.getElementById("filtroZonaModoBarrio").classList.toggle("selected", modo === 'barrio');
+  document.getElementById("filtroZonaModoDistancia").classList.toggle("selected", modo === 'distancia');
+  document.getElementById("filtroZonaSelect").style.display = modo === 'barrio' ? 'block' : 'none';
+  document.getElementById("filtroDistanciaInput").style.display = modo === 'distancia' ? 'block' : 'none';
+  if(modo === 'distancia' && (!userLat || !userLng)){
+    alert("No tengo tu ubicación todavía — activá el GPS para filtrar por distancia.");
+  }
+  if(aplicar) aplicarFiltrosUI();
+};
+
+window.aplicarFiltrosUI = () => {
+  filtros.zona = document.getElementById("filtroZonaSelect").value;
+  filtros.distancia = parseFloat(document.getElementById("filtroDistanciaInput").value) || null;
+  filtros.precio = parseFloat(document.getElementById("filtroPrecioInput").value) || null;
+  filtros.fecha = document.getElementById("filtroFechaInput").value;
+  filtros.horaDesde = document.getElementById("filtroHoraInput").value;
+  actualizarBadgeFiltros();
+};
+
+window.resetFiltros = () => {
+  filtros = { tipo: null, zonaModo: 'barrio', zona: '', distancia: null, precio: null, fecha: '', horaDesde: '' };
+  actualizarBadgeFiltros();
+  render();
+};
+
+window.limpiarFiltros = () => {
+  filtros = { tipo: null, zonaModo: 'barrio', zona: '', distancia: null, precio: null, fecha: '', horaDesde: '' };
+  abrirFiltros();
+  actualizarBadgeFiltros();
+};
+
+function actualizarBadgeFiltros(){
+  let activos = (filtros.tipo?1:0) + (filtros.zona||filtros.distancia?1:0) + (filtros.precio?1:0) + (filtros.fecha?1:0) + (filtros.horaDesde?1:0);
+  document.getElementById("filtrosBadgeDot").style.display = activos > 0 ? 'block' : 'none';
+}
+
+function partidoPasaFiltros(p){
+  if(filtros.tipo && p.tipo !== filtros.tipo) return false;
+  if(filtros.zonaModo === 'barrio' && filtros.zona && p.canchaZona !== filtros.zona) return false;
+  if(filtros.zonaModo === 'distancia' && filtros.distancia && userLat && userLng && p.canchaLat){
+    let dist = parseFloat(calcularDistancia(userLat, userLng, p.canchaLat, p.canchaLng));
+    if(dist > filtros.distancia) return false;
+  }
+  if(filtros.precio != null && (p.precio||0) > filtros.precio) return false;
+  if(filtros.fecha && p.fecha !== filtros.fecha) return false;
+  if(filtros.horaDesde && p.hora && p.hora < filtros.horaDesde) return false;
+  return true;
+}
+
 
 function calcularDistancia(lat1, lng1, lat2, lng2){
   const R = 6371;
@@ -974,10 +1121,14 @@ window.render = () => {
     if(perfil && (p.solicitudes||[]).some(s => s.nombre === perfil.nombre)) return false;
     if(perfil && (p.confirmados||[]).some(c => nombreDeConfirmado(c) === perfil.nombre)) return false;
     if(p.jugadores >= p.max) return false; // partido lleno
+    if(!partidoPasaFiltros(p)) return false;
     return true;
   });
   if(partidosFiltrados.length === 0){
-    card.innerHTML = `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No hay partidos disponibles.<br>¡Creá el primero!</div></div>`;
+    let hayFiltrosActivos = filtros.tipo || filtros.zona || filtros.distancia || filtros.precio || filtros.fecha || filtros.horaDesde;
+    card.innerHTML = hayFiltrosActivos
+      ? `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">No hay partidos que cumplan tus filtros.<br><span onclick="resetFiltros()" style="color:var(--green);text-decoration:underline;cursor:pointer;">Limpiar filtros</span></div></div>`
+      : `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No hay partidos disponibles.<br>¡Creá el primero!</div></div>`;
     return;
   }
   if(idx >= partidosFiltrados.length) idx = 0;
@@ -1122,6 +1273,7 @@ window.crearPartido = async () => {
     canchaDireccion: canchaSeleccionada.direccion,
     canchaLat: canchaSeleccionada.lat,
     canchaLng: canchaSeleccionada.lng,
+    canchaZona: canchaSeleccionada.zona,
     hora:h, fecha:f, tipo:tipoSel, duracion:durSel,
     inicioTimestamp: inicioDate.getTime(),
     finTimestamp: finDate.getTime(),
