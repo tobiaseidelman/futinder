@@ -541,7 +541,7 @@
     <div id="listaSolicitudes"></div>
     <div style="padding:16px 20px; display:flex; flex-direction:column; gap:10px;">
       <button class="submit-btn" onclick="abrirChatPartido()" style="background:var(--surface);color:var(--green);border:1px solid var(--green);">💬 Ir al chat</button>
-      <button class="submit-btn" onclick="cancelarPartido()" style="background:#1a0000;color:var(--red);border:1px solid #400;">🚫 Cancelar partido</button>
+      <button class="submit-btn" onclick="abrirMotivoCancelacion()" style="background:#1a0000;color:var(--red);border:1px solid #400;">🚫 Cancelar partido</button>
     </div>
   </div>
 </div>
@@ -595,6 +595,33 @@
   <div class="modal-sheet" onclick="event.stopPropagation()" style="max-height:90vh;">
     <div class="modal-handle"></div>
     <div id="modalRatingContent"></div>
+  </div>
+</div>
+
+<!-- MODAL MOTIVO CANCELACIÓN -->
+<div class="modal-overlay" id="modalMotivoCancelacion" onclick="cerrarMotivoCancelacion()">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;margin-bottom:4px;">¿POR QUÉ CANCELÁS?</div>
+    <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">Se lo vamos a contar a los jugadores confirmados junto con el aviso.</div>
+
+    <div class="form-group">
+      <div id="motivosGrid" style="display:flex;flex-direction:column;gap:8px;">
+        <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Faltaron jugadores')">👥 Faltaron jugadores</button>
+        <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Cambio de planes')">🔄 Cambio de planes</button>
+        <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Problema con la cancha')">🏟️ Problema con la cancha</button>
+        <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Mal tiempo')">🌧️ Mal tiempo</button>
+        <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Otro motivo')">✏️ Otro motivo</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Detalle (opcional)</label>
+      <input class="form-input" id="motivoDetalleInput" placeholder="Agregá una aclaración si querés...">
+    </div>
+
+    <button class="submit-btn" id="btnConfirmarCancelacion" onclick="confirmarCancelacionConMotivo()" style="background:#1a0000;color:var(--red);border:1px solid #400;" disabled>Elegí un motivo para continuar</button>
+    <button class="submit-btn" onclick="cerrarMotivoCancelacion()" style="background:var(--surface2);color:var(--text-muted);border:1px solid #333;margin-top:8px;">Volver</button>
   </div>
 </div>
 
@@ -1538,11 +1565,43 @@ window.rechazar = async (i) => {
   verDetalle(idx);
 };
 
-window.cancelarPartido = async () => {
+let motivoCancelacionElegido = null;
+
+window.abrirMotivoCancelacion = () => {
+  motivoCancelacionElegido = null;
+  document.querySelectorAll(".motivo-btn").forEach(b => b.classList.remove("selected"));
+  document.getElementById("motivoDetalleInput").value = "";
+  document.getElementById("btnConfirmarCancelacion").disabled = true;
+  document.getElementById("btnConfirmarCancelacion").textContent = "Elegí un motivo para continuar";
+  document.getElementById("modalMotivoCancelacion").classList.add("show");
+};
+window.cerrarMotivoCancelacion = () => {
+  document.getElementById("modalMotivoCancelacion").classList.remove("show");
+};
+window.selMotivoCancelacion = (btn, motivo) => {
+  motivoCancelacionElegido = motivo;
+  document.querySelectorAll(".motivo-btn").forEach(b => b.classList.remove("selected"));
+  btn.classList.add("selected");
+  let boton = document.getElementById("btnConfirmarCancelacion");
+  boton.disabled = false;
+  boton.textContent = "🚫 Confirmar cancelación";
+};
+
+window.confirmarCancelacionConMotivo = async () => {
+  if(!motivoCancelacionElegido) return;
+  let detalle = document.getElementById("motivoDetalleInput").value.trim();
+  let motivoCompleto = detalle ? `${motivoCancelacionElegido} — ${detalle}` : motivoCancelacionElegido;
+  cerrarMotivoCancelacion();
+  await cancelarPartido(motivoCompleto);
+};
+
+window.cancelarPartido = async (motivo) => {
   let p = partidos[idx];
   let confirmados = p.confirmados || [];
-  
-  if(!confirm(`¿Cancelar el partido en ${p.cancha}? Se notificará a todos los jugadores confirmados.`)) return;
+
+  if(!motivo && !confirm(`¿Cancelar el partido en ${p.cancha}? Se notificará a todos los jugadores confirmados.`)) return;
+
+  let textoMotivo = motivo ? ` Motivo: ${motivo}.` : '';
 
   // Notificar a cada jugador confirmado
   for(let c of confirmados){
@@ -1550,7 +1609,7 @@ window.cancelarPartido = async () => {
     if(uid && uid !== usuario.uid){
       await addDoc(collection(db, "usuarios", uid, "notificaciones"), {
         tipo: "cancelado",
-        texto: `El partido en ${p.cancha} (${p.hora}) fue cancelado por el creador.`,
+        texto: `El partido en ${p.cancha} (${p.hora}) fue cancelado por el creador.${textoMotivo}`,
         partidoId: p.id,
         visto: false,
         creadoEn: serverTimestamp()
