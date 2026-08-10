@@ -1416,6 +1416,7 @@ function uidDeConfirmado(c){ return typeof c === 'string' ? null : c.uid; }
 function getConfirmadoItemHTML(c, p, estado){
   let nombre = nombreDeConfirmado(c);
   let esYo = nombre === perfil.nombre;
+  let esCreador = nombre === p.creador;
   let yaCalifique = ((p.calificaciones||{})[perfil.nombre]||[]).includes(nombre);
   let accion = '';
   if(estado === 'finalizado' && !esYo){
@@ -1426,7 +1427,7 @@ function getConfirmadoItemHTML(c, p, estado){
   return `<div class="confirmado-item" style="justify-content:space-between;">
     <div style="display:flex;align-items:center;gap:12px;">
       <div class="mini-avatar">${nombre[0].toUpperCase()}</div>
-      <div>${nombre}</div>
+      <div>${nombre}${esCreador?` <span style="background:#003300;color:var(--green);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:4px;">👨‍🔧 Creador</span>`:''}</div>
     </div>
     ${accion}
   </div>`;
