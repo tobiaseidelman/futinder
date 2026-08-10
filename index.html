@@ -517,6 +517,7 @@
   <div class="tabs">
     <button class="tab-btn active" id="tab-creados" onclick="switchTab('creados')">⚽ Creados</button>
     <button class="tab-btn" id="tab-confirmados" onclick="switchTab('confirmados')">✅ Confirmados</button>
+    <button class="tab-btn" id="tab-finalizados" onclick="switchTab('finalizados')">🏁 Finalizados</button>
   </div>
   <div class="mis-partidos-list" id="listaPartidos"></div>
   <nav class="navbar">
@@ -541,7 +542,7 @@
     <div id="listaSolicitudes"></div>
     <div style="padding:16px 20px; display:flex; flex-direction:column; gap:10px;">
       <button class="submit-btn" onclick="abrirChatPartido()" style="background:var(--surface);color:var(--green);border:1px solid var(--green);">💬 Ir al chat</button>
-      <button class="submit-btn" onclick="abrirMotivoCancelacion()" style="background:#1a0000;color:var(--red);border:1px solid #400;">🚫 Cancelar partido</button>
+      <button class="submit-btn" id="btnCancelarPartido" onclick="abrirMotivoCancelacion()" style="background:#1a0000;color:var(--red);border:1px solid #400;">🚫 Cancelar partido</button>
     </div>
   </div>
 </div>
@@ -1404,6 +1405,7 @@ window.switchTab = (tab) => {
   tabActual = tab;
   document.getElementById("tab-creados").classList.toggle("active", tab === 'creados');
   document.getElementById("tab-confirmados").classList.toggle("active", tab === 'confirmados');
+  document.getElementById("tab-finalizados").classList.toggle("active", tab === 'finalizados');
   renderTabPartidos();
 };
 
@@ -1447,36 +1449,59 @@ function estadoBadge(estado){
 function renderTabPartidos(){
   let html = '';
   if(tabActual === 'creados'){
-    let mios = partidos.filter(p => (p.creadorUid === usuario.uid || p.creador === perfil.nombre) && !p.ocultoCreador);
+    let mios = partidos.filter(p => (p.creadorUid === usuario.uid || p.creador === perfil.nombre) && !p.ocultoCreador && getEstadoPartido(p) !== 'finalizado');
     if(mios.length === 0){
-      html = `<div class="empty"><div class="empty-icon">➕</div><div class="empty-text">No creaste ningún partido todavía.</div></div>`;
+      html = `<div class="empty"><div class="empty-icon">➕</div><div class="empty-text">No tenés partidos creados activos.</div></div>`;
     }
     mios.forEach(p => {
       let ri = partidos.indexOf(p);
       let pend = (p.solicitudes||[]).length;
       let estado = getEstadoPartido(p);
       let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
-      html += `<div class="partido-item" style="position:relative;" onclick="verDetalle(${ri})">
-        ${estado==='finalizado'?`<button onclick="event.stopPropagation();eliminarDeCreados('${p.id}')" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;">🗑️</button>`:''}
+      html += `<div class="partido-item" onclick="verDetalle(${ri})">
         <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}${estado==='activo'&&pend>0?`<span class="solicitudes-badge">${pend}</span>`:''}</div>
         <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
         <div class="partido-item-sub" style="margin-top:4px;">👨‍🔧 Creador · ${estado==='activo'?`${pend} solicitud${pend!==1?'es':''} pendiente${pend!==1?'s':''}`:estado}</div>
       </div>`;
     });
-  } else {
-    let conf = partidos.filter(p => p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === perfil.nombre) && !(p.ocultoPara||[]).includes(perfil.nombre));
+  } else if(tabActual === 'confirmados'){
+    let conf = partidos.filter(p => p.creadorUid !== usuario.uid && p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === perfil.nombre) && !(p.ocultoPara||[]).includes(perfil.nombre) && getEstadoPartido(p) !== 'finalizado');
     if(conf.length === 0){
-      html = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Todavía no fuiste confirmado en ningún partido.</div></div>`;
+      html = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">No tenés partidos confirmados activos.</div></div>`;
     }
     conf.forEach(p => {
       let ri = partidos.indexOf(p);
       let estado = getEstadoPartido(p);
       let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
-      html += `<div class="partido-item" style="position:relative;" onclick="verInfoPartido(${ri})">
-        ${estado==='finalizado'?`<button onclick="event.stopPropagation();eliminarDeConfirmados('${p.id}')" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;">🗑️</button>`:''}
+      html += `<div class="partido-item" onclick="verInfoPartido(${ri})">
         <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}</div>
         <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
         <div class="partido-item-sub" style="margin-top:4px;">✅ Confirmado · Ver info</div>
+      </div>`;
+    });
+  } else {
+    // Finalizados: junta lo creado y lo confirmado, cada uno con su propia acción de eliminar
+    let fin = partidos.filter(p => {
+      if(getEstadoPartido(p) !== 'finalizado') return false;
+      let esCreador = p.creadorUid === usuario.uid;
+      if(esCreador) return !p.ocultoCreador;
+      let esConfirmado = p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === perfil.nombre);
+      return esConfirmado && !(p.ocultoPara||[]).includes(perfil.nombre);
+    });
+    if(fin.length === 0){
+      html = `<div class="empty"><div class="empty-icon">🏁</div><div class="empty-text">Todavía no tenés partidos finalizados.</div></div>`;
+    }
+    fin.forEach(p => {
+      let ri = partidos.indexOf(p);
+      let esCreador = p.creadorUid === usuario.uid;
+      let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
+      let eliminarFn = esCreador ? `eliminarDeCreados('${p.id}')` : `eliminarDeConfirmados('${p.id}')`;
+      let verFn = esCreador ? `verDetalle(${ri})` : `verInfoPartido(${ri})`;
+      html += `<div class="partido-item" style="position:relative;" onclick="${verFn}">
+        <button onclick="event.stopPropagation();${eliminarFn}" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;">🗑️</button>
+        <div class="partido-item-title">${p.cancha}${estadoBadge('finalizado')}</div>
+        <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
+        <div class="partido-item-sub" style="margin-top:4px;">${esCreador?'👨‍🔧 Creador':'✅ Confirmado'} · Finalizado</div>
       </div>`;
     });
   }
@@ -1499,6 +1524,7 @@ window.verMisPartidos = () => {
   tabActual = 'creados';
   document.getElementById("tab-creados").classList.add("active");
   document.getElementById("tab-confirmados").classList.remove("active");
+  document.getElementById("tab-finalizados").classList.remove("active");
   renderTabPartidos();
   cambiarPantalla("misPartidos");
 };
@@ -1512,6 +1538,7 @@ window.verDetalle = (i) => {
     ? `<div style="padding:0 20px;color:var(--text-muted);font-size:14px;">Nadie confirmado todavía</div>`
     : (p.confirmados||[]).map(c => getConfirmadoItemHTML(c, p, estadoCreador)).join('');
   document.getElementById("listaConfirmados").innerHTML = htmlConf;
+  document.getElementById("btnCancelarPartido").style.display = estadoCreador === 'finalizado' ? 'none' : 'block';
 
   let htmlSol = (p.solicitudes||[]).length === 0
     ? `<div style="padding:0 20px;color:var(--text-muted);font-size:14px;">Sin solicitudes</div>`
