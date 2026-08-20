@@ -392,6 +392,7 @@
   <div class="topbar">
     <div class="topbar-title">⚽ Futinder</div>
     <div style="display:flex;gap:8px;">
+      <button class="icon-btn" id="adminBtn" onclick="verAdminPanel()" style="display:none;">🛡️</button>
       <button class="icon-btn" onclick="abrirFiltros()">
         🎛️ <span class="badge-dot" id="filtrosBadgeDot" style="display:none;"></span>
       </button>
@@ -544,6 +545,23 @@
     <button class="nav-btn" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
     <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
     <button class="nav-btn active" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
+    <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
+  </nav>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="adminPanel" class="screen">
+  <div class="topbar">
+    <button class="back-btn" onclick="irHome()">←</button>
+    <div class="topbar-title">🛡️ Panel de admin</div>
+    <div style="width:42px"></div>
+  </div>
+  <div style="padding:0 20px 10px;color:var(--text-muted);font-size:13px;">Partidos activos — cancelalos si hace falta moderar.</div>
+  <div class="mis-partidos-list" id="listaAdminPartidos"></div>
+  <nav class="navbar">
+    <button class="nav-btn" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
+    <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
+    <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
     <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
   </nav>
 </div>
@@ -1007,6 +1025,10 @@ function pedirUbicacion(){
 let partidos = [];
 let perfil = null;
 let usuario = null; // usuario de Google
+
+// ---- ADMIN ----
+const ADMIN_UID = "CF4vDb4JcfZ7pDUOmXMKxqnjBM32";
+function esAdmin(){ return usuario && usuario.uid === ADMIN_UID; }
 let notificaciones = [];
 let idx = 0;
 let tipoSel = '5', durSel = '1:30h', posSel = '', posEditSel = '';
@@ -1045,6 +1067,7 @@ onAuthStateChanged(auth, async (user) => {
     perfil = perfilSnap.data();
     iniciarPartidos();
     iniciarNotificaciones();
+    if(esAdmin()) document.getElementById("adminBtn").style.display = "flex";
     cambiarPantalla("home");
   } else {
     // Nuevo usuario — pre-llenar con datos de Google
@@ -1341,15 +1364,57 @@ window.crearPartido = async () => {
 // ---- PERFIL ----
 let fotoNuevaFile = null;
 
-window.previsualizarFoto = (input, previewId) => {
+// Comprime una imagen redimensionándola y bajando la calidad JPEG hasta que pese menos de maxKB
+function comprimirImagen(file, maxLado = 1280, maxKB = 1000){
+  return new Promise((resolve, reject) => {
+    let img = new Image();
+    let reader = new FileReader();
+    reader.onload = (e) => { img.src = e.target.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let { width, height } = img;
+      if(width > height && width > maxLado){ height = height * (maxLado / width); width = maxLado; }
+      else if(height > maxLado){ width = width * (maxLado / height); height = maxLado; }
+      let canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+
+      let calidad = 0.85;
+      const intentar = () => {
+        canvas.toBlob((blob) => {
+          if(!blob){ reject(new Error("No se pudo procesar la imagen")); return; }
+          if(blob.size / 1024 <= maxKB || calidad <= 0.4){
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+          } else {
+            calidad -= 0.15;
+            intentar();
+          }
+        }, "image/jpeg", calidad);
+      };
+      intentar();
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+window.previsualizarFoto = async (input, previewId) => {
   let file = input.files[0];
   if(!file) return;
-  if(file.size > 5 * 1024 * 1024){ alert("La foto no puede pesar más de 5MB"); input.value = ''; return; }
-  fotoNuevaFile = file;
+  if(!file.type.startsWith('image/')){ alert("Elegí un archivo de imagen"); input.value = ''; return; }
   let preview = document.getElementById(previewId);
-  let reader = new FileReader();
-  reader.onload = (e) => { preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`; };
-  reader.readAsDataURL(file);
+  preview.innerHTML = '⏳';
+  try{
+    fotoNuevaFile = await comprimirImagen(file);
+    let reader = new FileReader();
+    reader.onload = (e) => { preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`; };
+    reader.readAsDataURL(fotoNuevaFile);
+  }catch(e){
+    console.error("Error comprimiendo foto:", e);
+    alert("No se pudo procesar esa imagen, probá con otra.");
+    preview.innerHTML = '👤';
+    input.value = '';
+  }
 };
 
 async function subirFoto(file, path){
@@ -1363,12 +1428,13 @@ let jugadaSubiendo = false;
 window.agregarJugada = async (input) => {
   let file = input.files[0];
   if(!file) return;
-  if(file.size > 5 * 1024 * 1024){ alert("La foto no puede pesar más de 5MB"); return; }
+  if(!file.type.startsWith('image/')){ alert("Elegí un archivo de imagen"); return; }
   if((perfil.jugadas||[]).length >= 6){ alert("Máximo 6 fotos de jugadas por ahora."); return; }
   jugadaSubiendo = true;
   verMiPerfil();
   try{
-    let url = await subirFoto(file, `jugadas/${usuario.uid}/${Date.now()}.jpg`);
+    let comprimida = await comprimirImagen(file);
+    let url = await subirFoto(comprimida, `jugadas/${usuario.uid}/${Date.now()}.jpg`);
     perfil.jugadas = [...(perfil.jugadas||[]), url];
     await updateDoc(doc(db, "usuarios", usuario.uid), { jugadas: arrayUnion(url) });
   }catch(e){
@@ -1385,6 +1451,26 @@ window.eliminarJugada = async (url) => {
   await updateDoc(doc(db, "usuarios", usuario.uid), { jugadas: arrayRemove(url) });
   try{ await deleteObject(ref(storage, url)); }catch(e){ /* puede fallar si ya no existe, no bloquea */ }
   verMiPerfil();
+};
+
+// ---- ADMIN ----
+window.verAdminPanel = () => {
+  if(!esAdmin()) return;
+  let activos = partidos.filter(p => getEstadoPartido(p) !== 'finalizado');
+  let html = activos.length === 0
+    ? `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">No hay partidos activos ahora mismo.</div></div>`
+    : activos.map(p => {
+        let estado = getEstadoPartido(p);
+        let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
+        return `<div class="partido-item" style="position:relative;">
+          <button onclick="abrirMotivoCancelacion('${p.id}')" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;">🚫</button>
+          <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}</div>
+          <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
+          <div class="partido-item-sub" style="margin-top:4px;">Creado por ${p.creador}</div>
+        </div>`;
+      }).join('');
+  document.getElementById("listaAdminPartidos").innerHTML = html;
+  cambiarPantalla("adminPanel");
 };
 
 window.crearPerfil = async () => {
@@ -1684,8 +1770,10 @@ window.rechazar = async (i) => {
 };
 
 let motivoCancelacionElegido = null;
+let motivoPartidoId = null;
 
-window.abrirMotivoCancelacion = () => {
+window.abrirMotivoCancelacion = (partidoId) => {
+  motivoPartidoId = partidoId || (partidos[idx] && partidos[idx].id);
   motivoCancelacionElegido = null;
   document.querySelectorAll(".motivo-btn").forEach(b => b.classList.remove("selected"));
   document.getElementById("motivoDetalleInput").value = "";
@@ -1710,16 +1798,19 @@ window.confirmarCancelacionConMotivo = async () => {
   let detalle = document.getElementById("motivoDetalleInput").value.trim();
   let motivoCompleto = detalle ? `${motivoCancelacionElegido} — ${detalle}` : motivoCancelacionElegido;
   cerrarMotivoCancelacion();
-  await cancelarPartido(motivoCompleto);
+  await cancelarPartido(motivoPartidoId, motivoCompleto);
 };
 
-window.cancelarPartido = async (motivo) => {
-  let p = partidos[idx];
+window.cancelarPartido = async (partidoId, motivo) => {
+  let p = partidos.find(x => x.id === partidoId) || partidos[idx];
+  if(!p) return;
   let confirmados = p.confirmados || [];
+  let porAdmin = esAdmin() && p.creadorUid !== usuario.uid;
 
   if(!motivo && !confirm(`¿Cancelar el partido en ${p.cancha}? Se notificará a todos los jugadores confirmados.`)) return;
 
   let textoMotivo = motivo ? ` Motivo: ${motivo}.` : '';
+  let textoQuien = porAdmin ? 'por un administrador' : 'por el creador';
 
   // Notificar a cada jugador confirmado
   for(let c of confirmados){
@@ -1727,17 +1818,27 @@ window.cancelarPartido = async (motivo) => {
     if(uid && uid !== usuario.uid){
       await addDoc(collection(db, "usuarios", uid, "notificaciones"), {
         tipo: "cancelado",
-        texto: `El partido en ${p.cancha} (${p.hora}) fue cancelado por el creador.${textoMotivo}`,
+        texto: `El partido en ${p.cancha} (${p.hora}) fue cancelado ${textoQuien}.${textoMotivo}`,
         partidoId: p.id,
         visto: false,
         creadoEn: serverTimestamp()
       });
     }
   }
+  // Si cancela el admin y no es el creador, avisarle también al creador
+  if(porAdmin && p.creadorUid && p.creadorUid !== usuario.uid){
+    await addDoc(collection(db, "usuarios", p.creadorUid, "notificaciones"), {
+      tipo: "cancelado",
+      texto: `Tu partido en ${p.cancha} (${p.hora}) fue cancelado por un administrador.${textoMotivo}`,
+      partidoId: p.id,
+      visto: false,
+      creadoEn: serverTimestamp()
+    });
+  }
 
   // Borrar el partido
   await deleteDoc(doc(db, "partidos", p.id));
-  verMisPartidos();
+  if(porAdmin) verAdminPanel(); else verMisPartidos();
 };
 
 // ---- INFO PARTIDO (confirmado) ----
