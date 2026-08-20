@@ -352,6 +352,16 @@
         <input class="form-input" id="nombreNuevo" placeholder="Ej: Juan García">
       </div>
       <div class="form-group">
+        <label class="form-label">Foto de perfil (opcional)</label>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div id="previewFotoNueva" style="width:56px;height:56px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text-muted);overflow:hidden;flex-shrink:0;">👤</div>
+          <label class="submit-btn" style="background:var(--surface2);color:var(--text);border:1px solid #333;text-align:center;margin:0;flex:1;cursor:pointer;">
+            Elegir foto
+            <input type="file" id="fotoNuevaInput" accept="image/*" style="display:none;" onchange="previsualizarFoto(this,'previewFotoNueva')">
+          </label>
+        </div>
+      </div>
+      <div class="form-group">
         <label class="form-label">Posición</label>
         <div class="tipo-grid" style="grid-template-columns:repeat(4,1fr);">
           <button class="tipo-btn" onclick="selPos(this,'DC')">DC</button>
@@ -487,6 +497,16 @@
     <div style="width:42px"></div>
   </div>
   <div class="edit-screen">
+    <div class="form-group">
+      <label class="form-label">Foto de perfil</label>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div id="previewFotoEdit" style="width:56px;height:56px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text-muted);overflow:hidden;flex-shrink:0;">👤</div>
+        <label class="submit-btn" style="background:var(--surface2);color:var(--text);border:1px solid #333;text-align:center;margin:0;flex:1;cursor:pointer;">
+          Cambiar foto
+          <input type="file" id="fotoEditInput" accept="image/*" style="display:none;" onchange="previsualizarFoto(this,'previewFotoEdit')">
+        </label>
+      </div>
+    </div>
     <div class="form-group"><label class="form-label">Nombre</label><input class="form-input" id="editNombre"></div>
     <div class="form-group">
       <label class="form-label">Posición</label>
@@ -687,8 +707,9 @@
 <!-- FIREBASE -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, query, orderBy, where, serverTimestamp, increment, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, query, orderBy, where, serverTimestamp, increment, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBfMEhIaroFjf3dOHAXnTeolwJdi2kEQyQ",
@@ -702,6 +723,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
 const provider = new GoogleAuthProvider();
 
 // ---- CANCHAS PREGUARDADAS ----
@@ -1317,10 +1339,65 @@ window.crearPartido = async () => {
 };
 
 // ---- PERFIL ----
+let fotoNuevaFile = null;
+
+window.previsualizarFoto = (input, previewId) => {
+  let file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024){ alert("La foto no puede pesar más de 5MB"); input.value = ''; return; }
+  fotoNuevaFile = file;
+  let preview = document.getElementById(previewId);
+  let reader = new FileReader();
+  reader.onload = (e) => { preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`; };
+  reader.readAsDataURL(file);
+};
+
+async function subirFoto(file, path){
+  let fileRef = ref(storage, path);
+  await uploadBytes(fileRef, file);
+  return await getDownloadURL(fileRef);
+}
+
+let jugadaSubiendo = false;
+
+window.agregarJugada = async (input) => {
+  let file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024){ alert("La foto no puede pesar más de 5MB"); return; }
+  if((perfil.jugadas||[]).length >= 6){ alert("Máximo 6 fotos de jugadas por ahora."); return; }
+  jugadaSubiendo = true;
+  verMiPerfil();
+  try{
+    let url = await subirFoto(file, `jugadas/${usuario.uid}/${Date.now()}.jpg`);
+    perfil.jugadas = [...(perfil.jugadas||[]), url];
+    await updateDoc(doc(db, "usuarios", usuario.uid), { jugadas: arrayUnion(url) });
+  }catch(e){
+    console.error("Error subiendo jugada:", e);
+    alert("No se pudo subir la foto, probá de nuevo.");
+  }
+  jugadaSubiendo = false;
+  verMiPerfil();
+};
+
+window.eliminarJugada = async (url) => {
+  if(!confirm("¿Eliminar esta foto de tus jugadas?")) return;
+  perfil.jugadas = (perfil.jugadas||[]).filter(u => u !== url);
+  await updateDoc(doc(db, "usuarios", usuario.uid), { jugadas: arrayRemove(url) });
+  try{ await deleteObject(ref(storage, url)); }catch(e){ /* puede fallar si ya no existe, no bloquea */ }
+  verMiPerfil();
+};
+
 window.crearPerfil = async () => {
   let n = document.getElementById("nombreNuevo").value.trim();
   if(!n){ alert("Ingresá tu nombre"); return; }
   if(!posSel){ alert("Elegí tu posición"); return; }
+
+  let fotoUrl = usuario.photoURL || null;
+  if(fotoNuevaFile){
+    try{ fotoUrl = await subirFoto(fotoNuevaFile, `fotos-perfil/${usuario.uid}.jpg`); }
+    catch(e){ console.error("Error subiendo foto:", e); }
+  }
+
   perfil = {
     nombre: n,
     posicion: posSel,
@@ -1330,7 +1407,8 @@ window.crearPerfil = async () => {
     rating: 0,
     calificacionesRecibidas: 0,
     uid: usuario.uid,
-    foto: usuario.photoURL || null,
+    foto: fotoUrl,
+    jugadas: [],
     email: usuario.email
   };
   await setDoc(doc(db, "usuarios", usuario.uid), perfil);
@@ -1370,12 +1448,17 @@ window.verMiPerfil = () => {
       <div class="bio-text">${perfil.bio||'Sin bio todavía. ¡Editá tu perfil!'}</div>
       <p class="section-title">Zona</p>
       <div class="zona-row">📍 ${perfil.zona||'Sin zona definida'}</div>
-      <p class="section-title">Highlights</p>
+      <p class="section-title">Jugadas</p>
       <div class="highlight-list">
-        <div class="highlight-item highlight-add">➕</div>
-        <div class="highlight-item">🎯</div>
-        <div class="highlight-item">🔥</div>
+        <label class="highlight-item highlight-add" style="cursor:pointer;">
+          ${jugadaSubiendo ? '⏳' : '➕'}
+          <input type="file" accept="image/*" style="display:none;" onchange="agregarJugada(this)" ${jugadaSubiendo?'disabled':''}>
+        </label>
+        ${(perfil.jugadas||[]).map(url => `
+          <div class="highlight-item" style="padding:0;overflow:hidden;position:relative;background-image:url('${url}');background-size:cover;background-position:center;" onclick="eliminarJugada('${url}')">
+          </div>`).join('')}
       </div>
+      ${(perfil.jugadas||[]).length === 0 ? `<div style="color:var(--text-muted);font-size:12px;margin-top:6px;">Todavía no subiste fotos de tus jugadas. Tocá ➕ para agregar una.</div>` : `<div style="color:var(--text-muted);font-size:12px;margin-top:6px;">Tocá una foto para eliminarla.</div>`}
     </div>`;
   cambiarPantalla("perfil");
 };
@@ -1386,6 +1469,8 @@ window.editarPerfil = () => {
   document.getElementById("editZona").value = perfil.zona||'';
   posEditSel = perfil.posicion||'';
   document.querySelectorAll("#editPosGrid .tipo-btn").forEach(b => b.classList.toggle("selected", b.textContent===posEditSel));
+  fotoNuevaFile = null;
+  document.getElementById("previewFotoEdit").innerHTML = perfil.foto ? `<img src="${perfil.foto}" style="width:100%;height:100%;object-fit:cover;">` : '👤';
   cambiarPantalla("editarPerfil");
 };
 
@@ -1394,6 +1479,11 @@ window.guardarPerfil = async () => {
   perfil.posicion = posEditSel||perfil.posicion;
   perfil.bio = document.getElementById("editBio").value;
   perfil.zona = document.getElementById("editZona").value;
+  if(fotoNuevaFile){
+    try{ perfil.foto = await subirFoto(fotoNuevaFile, `fotos-perfil/${usuario.uid}.jpg`); }
+    catch(e){ console.error("Error subiendo foto:", e); alert("No se pudo subir la foto, se guardó el resto de los cambios."); }
+    fotoNuevaFile = null;
+  }
   await setDoc(doc(db, "usuarios", usuario.uid), perfil);
   verMiPerfil();
 };
@@ -1850,7 +1940,12 @@ window.abrirPerfilJugador = async (uid, nombre) => {
       <p class="section-title" style="margin-top:16px;">Bio</p>
       <div class="bio-text">${p.bio||'Sin bio'}</div>
       <p class="section-title" style="margin-top:12px;">Zona</p>
-      <div class="zona-row">📍 ${p.zona||'Sin zona'}</div>`;
+      <div class="zona-row">📍 ${p.zona||'Sin zona'}</div>
+      ${(p.jugadas||[]).length > 0 ? `
+      <p class="section-title" style="margin-top:12px;">Jugadas</p>
+      <div class="highlight-list">
+        ${(p.jugadas||[]).map(url => `<div class="highlight-item" style="padding:0;overflow:hidden;background-image:url('${url}');background-size:cover;background-position:center;"></div>`).join('')}
+      </div>` : ''}`;
   } catch(e) {
     document.getElementById("modalContent").innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">No se pudo cargar el perfil</div>`;
   }
