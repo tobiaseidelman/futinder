@@ -6,6 +6,7 @@ import { TAGS } from './data/tags.js';
 
 // ---- PERFIL ----
 let fotoNuevaFile = null;
+let fotoProcesando = false;
 
 // Comprime una imagen redimensionándola y bajando la calidad JPEG hasta que pese menos de maxKB
 function comprimirImagen(file, maxLado = 1280, maxKB = 1000){
@@ -27,6 +28,7 @@ function comprimirImagen(file, maxLado = 1280, maxKB = 1000){
         canvas.toBlob((blob) => {
           if(!blob){ reject(new Error("No se pudo procesar la imagen")); return; }
           if(blob.size / 1024 <= maxKB || calidad <= 0.4){
+            if(blob.size > maxKB * 1024){ reject(new Error("La imagen supera el tamaño permitido")); return; }
             resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
           } else {
             calidad -= 0.15;
@@ -45,10 +47,14 @@ window.previsualizarFoto = async (input, previewId) => {
   let file = input.files[0];
   if(!file) return;
   if(!file.type.startsWith('image/')){ alert("Elegí un archivo de imagen"); input.value = ''; return; }
+  if(file.size > 15 * 1024 * 1024){ alert('Elegí una imagen de menos de 15 MB'); return; }
+  if(fotoProcesando) return;
+  fotoProcesando = true;
+  fotoNuevaFile = null;
   let preview = document.getElementById(previewId);
   preview.innerHTML = '⏳';
   try{
-    fotoNuevaFile = await comprimirImagen(file);
+    fotoNuevaFile = await comprimirImagen(file, 256, 24);
     let reader = new FileReader();
     reader.onload = (e) => { preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`; };
     reader.readAsDataURL(fotoNuevaFile);
@@ -57,8 +63,27 @@ window.previsualizarFoto = async (input, previewId) => {
     alert("No se pudo procesar esa imagen, probá con otra.");
     preview.innerHTML = '👤';
     input.value = '';
-  }
+  } finally { fotoProcesando = false; }
 };
+
+// Avatar pequeño: máximo 24 KiB JPEG (~32 KiB codificado), guardado en el perfil.
+function leerFotoPerfil(file){
+  return new Promise((resolve, reject) => {
+    if(file.type !== 'image/jpeg' || file.size > 24 * 1024){
+      reject(new Error('La foto de perfil debe ser un JPEG de hasta 24 KB')); return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer la foto'));
+    reader.onload = () => {
+      const value = reader.result;
+      if(typeof value !== 'string' || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value) || value.length > 32800){
+        reject(new Error('Foto de perfil inválida')); return;
+      }
+      resolve(value);
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 async function subirFoto(file, path){
   let fileRef = ref(storage, path);
@@ -97,14 +122,15 @@ window.eliminarJugada = async (url) => {
 };
 
 window.crearPerfil = async () => {
+  if(fotoProcesando){ alert('Esperá a que termine de prepararse la foto'); return; }
   let n = document.getElementById("nombreNuevo").value.trim();
   if(!n){ alert("Ingresá tu nombre"); return; }
   if(!state.posSel){ alert("Elegí tu posición"); return; }
 
   let fotoUrl = state.usuario.photoURL || null;
   if(fotoNuevaFile){
-    try{ fotoUrl = await subirFoto(fotoNuevaFile, `fotos-perfil/${state.usuario.uid}.jpg`); }
-    catch(e){ console.error("Error subiendo foto:", e); }
+    try{ fotoUrl = await leerFotoPerfil(fotoNuevaFile); }
+    catch(e){ console.error("Error preparando foto:", e); alert("No se pudo preparar la foto. Probá con otra."); return; }
   }
 
   state.perfil = {
@@ -183,18 +209,27 @@ window.editarPerfil = () => {
   cambiarPantalla("editarPerfil");
 };
 
+let guardandoPerfil = false;
 window.guardarPerfil = async () => {
-  state.perfil.nombre = document.getElementById("editNombre").value.trim()||state.perfil.nombre;
-  state.perfil.posicion = state.posEditSel||state.perfil.posicion;
-  state.perfil.bio = document.getElementById("editBio").value;
-  state.perfil.zona = document.getElementById("editZona").value;
-  if(fotoNuevaFile){
-    try{ state.perfil.foto = await subirFoto(fotoNuevaFile, `fotos-perfil/${state.usuario.uid}.jpg`); }
-    catch(e){ console.error("Error subiendo foto:", e); alert("No se pudo subir la foto, se guardó el resto de los cambios."); }
+  if(guardandoPerfil) return;
+  if(fotoProcesando){ alert('Esperá a que termine de prepararse la foto'); return; }
+  guardandoPerfil = true;
+  try {
+    const cambios = {
+      nombre: document.getElementById("editNombre").value.trim() || state.perfil.nombre,
+      posicion: state.posEditSel || state.perfil.posicion,
+      bio: document.getElementById("editBio").value,
+      zona: document.getElementById("editZona").value,
+    };
+    if(fotoNuevaFile) cambios.foto = await leerFotoPerfil(fotoNuevaFile);
+    await updateDoc(doc(db, "usuarios", state.usuario.uid), cambios);
+    Object.assign(state.perfil, cambios);
     fotoNuevaFile = null;
-  }
-  await setDoc(doc(db, "usuarios", state.usuario.uid), state.perfil);
-  verMiPerfil();
+    verMiPerfil();
+  } catch(e) {
+    console.error('Error guardando perfil:', e);
+    alert('No se pudieron guardar los cambios. Tu foto anterior se conserva. Probá de nuevo.');
+  } finally { guardandoPerfil = false; }
 };
 
 // ---- MODAL JUGADOR ----
