@@ -319,6 +319,58 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   ::-webkit-scrollbar { width: 0; }
+
+/* Tarjeta principal: diseño para celular, conservando la identidad original. */
+#home { min-height:100svh; }
+#home .topbar { padding:12px 18px 8px; min-height:62px; }
+#home .topbar-title { font-size:26px; }
+#home .icon-btn { border:1px solid #303030; border-radius:13px; }
+#home .cards-area { justify-content:flex-start; padding:8px 16px 96px; }
+#home .partido-card { border:1px solid #333; border-radius:22px; box-shadow:0 12px 32px #0004; }
+#home .card-img { height:clamp(190px,34svh,320px); }
+#home .card-img-overlay { height:115px; padding:18px; background:linear-gradient(transparent,rgba(0,0,0,.92)); }
+#home .card-cancha-name { border:0; background:none; text-align:left; padding:0; max-width:100%; font:inherit; color:white; cursor:pointer; }
+.cancha-heading { display:flex; align-items:center; gap:8px; font-family:'Bebas Neue',sans-serif; font-size:29px; line-height:1.1; letter-spacing:.5px; }
+.cancha-heading svg { width:19px; height:19px; flex-shrink:0; color:var(--green); }
+.cancha-location-hint { display:block; font-family:'DM Sans',sans-serif; font-size:11px; color:#ddd; margin-top:6px; }
+#home .distance-popup { bottom:84px; left:14px; right:14px; padding:13px 15px; border-radius:12px; color:#eee; background:#101010f5; line-height:1.5; font-size:12px; box-shadow:0 6px 22px #0006; }
+.distance-value { display:block; color:var(--green); margin-top:5px; }
+#home .card-body { padding:15px 16px 16px; }
+.match-summary { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.match-date { color:#ddd; font-size:12px; text-transform:capitalize; }
+.match-time { font-size:25px; font-weight:600; letter-spacing:-.7px; line-height:1.25; margin-top:3px; }
+.match-price { text-align:right; padding-top:1px; }
+.match-price strong { display:block; font-size:22px; font-weight:600; line-height:1.3; }
+.match-price small { display:block; font-size:10px; color:#aaa; margin-top:2px; }
+.match-meta { display:flex; gap:8px; margin-top:10px; }
+.match-meta span { font-size:11px; color:#ccc; background:#242424; border:1px solid #333; border-radius:7px; padding:4px 9px; }
+#home .jugadores-bar { margin:14px 0 12px; }
+#home .jugadores-label { font-size:11px; margin-bottom:8px; align-items:center; gap:8px; }
+#home .jugadores-label .spots-left { color:var(--green); font-size:13px; font-weight:600; }
+#home .jugadores-label .spots-total { color:#aaa; font-weight:400; }
+#home .bar-bg { height:5px; }
+#home .creador-row { margin:0; padding-top:12px; border-top:1px solid #2b2b2b; gap:9px; }
+#home .creador-avatar { width:34px; height:34px; border-radius:50%; overflow:hidden; background:#16310f; }
+#home .creador-avatar img { width:100%; height:100%; object-fit:cover; }
+#home .creador-nombre { font-size:12px; font-weight:600; }
+#home .creador-sub { font-size:10px; margin-top:3px; color:#aaa; }
+#home .creator-rating { color:#ddd; font-size:11px; white-space:nowrap; }
+#home .card-actions { gap:10px; margin-top:13px; }
+#home .action-btn { font-size:13px; min-height:46px; border-radius:12px; padding:12px 8px; display:flex; align-items:center; justify-content:center; gap:9px; }
+#home .btn-no { flex:.8; background:#222; border:1px solid #444; color:#eee; }
+#home .btn-yes { flex:1.2; background:var(--green); border:1px solid var(--green); color:#091600; }
+#home .action-symbol { font-size:20px; line-height:1; }
+#home .swipe-hint { font-size:10px; color:#aaa; gap:22px; margin-top:12px; }
+#home .swipe-overlay { z-index:8; font-size:42px; }
+#home button:focus-visible { outline:2px solid var(--green); outline-offset:3px; }
+#home .navbar { background:#161616; border-top:1px solid #333; }
+#home .nav-btn { padding-top:10px; padding-bottom:9px; font-size:10px; }
+#home .nav-btn.active .nav-icon { background:#16310f; border-radius:10px; }
+#home .nav-icon { min-width:38px; height:28px; display:flex; align-items:center; justify-content:center; }
+#home .nav-icon svg,#home .icon-btn svg { width:21px; height:21px; }
+@media(max-height:720px) { #home .card-img { height:clamp(155px,29svh,205px); } #home .card-body { padding:12px 14px; } #home .jugadores-bar { margin:10px 0; } #home .creador-row { padding-top:9px; } #home .card-actions { margin-top:10px; } #home .swipe-hint { margin-top:8px; } }
+@media(prefers-reduced-motion:reduce) { #home * { transition:none!important; animation:none!important; } }
+
 </style>
 </head>
 <body>
@@ -393,11 +445,11 @@
     <div class="topbar-title">⚽ Futinder</div>
     <div style="display:flex;gap:8px;">
       <button class="icon-btn" id="adminBtn" onclick="verAdminPanel()" style="display:none;">🛡️</button>
-      <button class="icon-btn" onclick="abrirFiltros()">
-        🎛️ <span class="badge-dot" id="filtrosBadgeDot" style="display:none;"></span>
+      <button class="icon-btn" aria-label="Filtrar partidos" onclick="abrirFiltros()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg> <span class="badge-dot" id="filtrosBadgeDot" style="display:none;"></span>
       </button>
-      <button class="icon-btn" onclick="verNotificaciones()">
-        🔔 <span class="badge-dot" id="badgeDot"></span>
+      <button class="icon-btn" aria-label="Ver notificaciones" onclick="verNotificaciones()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg> <span class="badge-dot" id="badgeDot"></span>
       </button>
     </div>
   </div>
@@ -406,10 +458,10 @@
     <div class="swipe-hint"><span>← No me interesa</span><span>Quiero jugar →</span></div>
   </div>
   <nav class="navbar">
-    <button class="nav-btn active" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
-    <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
-    <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
-    <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
+    <button class="nav-btn active" onclick="irHome()"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7"/></svg></span>Inicio</button>
+    <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>Crear</button>
+    <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m12 8 4 3-2 5h-4l-2-5zM12 8V3M16 11l5-2M14 16l3 4M10 16l-3 4M8 11 3 9"/></svg></span>Mis partidos</button>
+    <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></span>Perfil</button>
   </nav>
 </div>
 
@@ -1179,6 +1231,40 @@ function animateAway(dir){
 }
 
 // ---- HOME ----
+// Texto seguro para la tarjeta y fecha legible sin cambiar el día por zona horaria.
+function textoTarjeta(value){
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fechaTarjeta(fecha){
+  if(!fecha) return 'Fecha a confirmar';
+  const fechaLocal = new Date(fecha + 'T12:00:00');
+  return Number.isNaN(fechaLocal.getTime()) ? fecha : fechaLocal.toLocaleDateString('es-UY', {weekday:'short', day:'numeric', month:'short'});
+}
+async function cargarCreadorTarjeta(p){
+  if(!p.creadorUid) return;
+  try {
+    const snap = await getDoc(doc(db, 'usuarios', p.creadorUid));
+    const target = document.getElementById('cardCreatorRating');
+    if(!target || target.dataset.partido !== p.id || !snap.exists()) return;
+    const datos = snap.data();
+    const total = Number(datos.calificacionesRecibidas) || 0;
+    const rating = Number(datos.rating);
+    target.textContent = total > 0 && Number.isFinite(rating) ? `★ ${rating.toFixed(1)} (${total})` : 'Sin opiniones';
+    const avatar = document.getElementById('cardCreatorAvatar');
+    if(avatar && typeof datos.foto === 'string' && /^https?:\/\//.test(datos.foto)){
+      const img = document.createElement('img');
+      img.src = datos.foto;
+      img.alt = '';
+      img.onerror = () => { avatar.textContent = (p.creador || '?')[0].toUpperCase(); };
+      avatar.replaceChildren(img);
+    }
+  } catch(e) {
+    const target = document.getElementById('cardCreatorRating');
+    if(target && target.dataset.partido === p.id) target.textContent = 'Ver perfil';
+  }
+}
+
+
 window.render = () => {
   actualizarBadge();
   const card = document.getElementById("card");
@@ -1209,53 +1295,56 @@ window.render = () => {
   let fill = Math.round((p.jugadores / p.max) * 100);
   let esCreador = perfil && p.creador === perfil.nombre;
   let confirmado = perfil && p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === perfil.nombre);
+  const faltan = Math.max(0, p.max - p.jugadores);
+  const tieneUbicacion = [userLat, userLng, p.canchaLat, p.canchaLng].every(v => typeof v === 'number' && Number.isFinite(v));
   card.innerHTML = `
-    <div class="partido-card" style="position:relative;">
-      <div class="swipe-overlay yes">QUIERO ✅</div>
-      <div class="swipe-overlay no">❌ PASO</div>
+    <div class="partido-card">
+      <div class="swipe-overlay yes">QUIERO JUGAR</div>
+      <div class="swipe-overlay no">PASO</div>
       <div class="card-img">
         <div class="card-img-bg" style="background-image:url('${p.canchaFoto||'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600'}')"></div>
         <div class="card-img-overlay">
-          <div class="card-cancha-name" onclick="toggleDist()">${p.cancha}</div>
+          <button class="card-cancha-name" id="canchaLocationBtn" onclick="toggleDist()" aria-expanded="false" aria-controls="distPopup">
+            <span class="cancha-heading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>${textoTarjeta(p.cancha)}</span>
+            <span class="cancha-location-hint">Ver dirección y distancia ›</span>
+          </button>
         </div>
-        <div class="distance-popup" id="distPopup">
-          ${(userLat&&userLng&&p.canchaLat)?`📍 ${calcularDistancia(userLat,userLng,p.canchaLat,p.canchaLng)} km`:'📍 Ubicación no disponible'}
+        <div class="distance-popup" id="distPopup" role="region" aria-label="Ubicación de la cancha">
+          <span>${textoTarjeta(p.canchaDireccion || 'Dirección no disponible')}</span>
+          ${tieneUbicacion ? `<span class="distance-value">A ${calcularDistancia(userLat,userLng,p.canchaLat,p.canchaLng)} km de vos · en línea recta</span>` : ''}
         </div>
       </div>
       <div class="card-body">
-        <div class="card-row">
-          ${p.fecha?`<div class="card-tag">📅 <span>${p.fecha}</span></div>`:''}
-          <div class="card-tag">🕓 <span>${p.hora}</span></div>
-          <div class="card-tag">⏱️ <span>${p.duracion||'1h'}</span></div>
-          <div class="card-tag">⚽ <span>Fútbol ${p.tipo}</span></div>
+        <div class="match-summary">
+          <div><div class="match-date">${textoTarjeta(fechaTarjeta(p.fecha))}</div><div class="match-time">${textoTarjeta(p.hora)}</div></div>
+          <div class="match-price"><strong>$${textoTarjeta(p.precio || 0)}</strong><small>UYU · por persona</small></div>
         </div>
+        <div class="match-meta"><span>Fútbol ${textoTarjeta(p.tipo)}</span><span>${textoTarjeta(p.duracion || '1h')}</span></div>
         <div class="jugadores-bar">
-          <div class="jugadores-label"><span>👥 Jugadores</span><span>${p.jugadores}/${p.max}</span></div>
+          <div class="jugadores-label"><span class="spots-left">${faltan === 1 ? 'Falta 1 jugador' : `Faltan ${faltan} jugadores`}</span><span class="spots-total">${p.jugadores} de ${p.max} cupos</span></div>
           <div class="bar-bg"><div class="bar-fill" style="width:${fill}%"></div></div>
         </div>
-        <div class="card-row">
-          <div class="card-tag">💰 <span>$${p.precio||0} / persona</span></div>
-          ${p.canchaDireccion?`<div class="card-tag" style="font-size:11px;">📍 <span>${p.canchaDireccion}</span></div>`:''}
-        </div>
-        <div class="creador-row" onclick="abrirPerfilJugador('${p.creadorUid}','${p.creador}')">
-          <div class="creador-avatar">${p.creador?p.creador[0].toUpperCase():'?'}</div>
-          <div class="creador-info">
-            <div class="creador-nombre">👨‍🔧 ${p.creador}</div>
-            <div class="creador-sub"><span class="stars">★★★★★</span> 4.8 · Creador</div>
-          </div>
-          <span style="color:var(--text-muted)">›</span>
+        <div class="creador-row" role="button" tabindex="0" onclick="abrirPerfilJugador(${textoTarjeta(JSON.stringify(p.creadorUid || ''))},${textoTarjeta(JSON.stringify(p.creador || ''))})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+          <div class="creador-avatar" id="cardCreatorAvatar">${textoTarjeta((p.creador || '?')[0].toUpperCase())}</div>
+          <div class="creador-info"><div class="creador-nombre">${textoTarjeta(p.creador)}</div><div class="creador-sub">Organiza el partido</div></div>
+          <span class="creator-rating" id="cardCreatorRating" data-partido="${textoTarjeta(p.id)}">Ver perfil</span>
+          <span aria-hidden="true" style="color:var(--text-muted)">›</span>
         </div>
         <div class="card-actions">
-          <button class="action-btn btn-no" onclick="next()">❌ Paso</button>
-          <button class="action-btn btn-yes" onclick="match()">✅ Quiero</button>
+          <button class="action-btn btn-no" onclick="next()"><span class="action-symbol" aria-hidden="true">×</span> Paso</button>
+          <button class="action-btn btn-yes" onclick="match()"><span class="action-symbol" aria-hidden="true">✓</span> Quiero jugar</button>
         </div>
-        ${(esCreador||confirmado)?`<button onclick="abrirChatIdx(${idx})" style="width:100%;margin-top:10px;padding:12px;background:var(--surface2);border:1px solid #333;border-radius:var(--radius-sm);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;">💬 Ir al chat</button>`:''}
       </div>
     </div>`;
   initSwipe();
+  cargarCreadorTarjeta(p);
 };
 
-window.toggleDist = () => document.getElementById("distPopup").classList.toggle("show");
+window.toggleDist = () => {
+  const popup = document.getElementById('distPopup');
+  popup.classList.toggle('show');
+  document.getElementById('canchaLocationBtn')?.setAttribute('aria-expanded', String(popup.classList.contains('show')));
+};
 window.next = () => {
   let ahora = Date.now();
   let filtrados = partidos.filter(p => {
@@ -1264,6 +1353,7 @@ window.next = () => {
     if(perfil && (p.solicitudes||[]).some(s => s.nombre === perfil.nombre)) return false;
     if(perfil && (p.confirmados||[]).some(c => nombreDeConfirmado(c) === perfil.nombre)) return false;
     if(p.jugadores >= p.max) return false;
+    if(!partidoPasaFiltros(p)) return false;
     return true;
   });
   idx = (idx+1) % Math.max(filtrados.length, 1);
@@ -1279,9 +1369,11 @@ window.match = async () => {
     if((p.solicitudes||[]).some(s => s.nombre === perfil.nombre)) return false;
     if((p.confirmados||[]).some(c => nombreDeConfirmado(c) === perfil.nombre)) return false;
     if(p.jugadores >= p.max) return false;
+    if(!partidoPasaFiltros(p)) return false;
     return true;
   });
   let p = filtrados[idx];
+  if(!p){ render(); return; }
   if(p.creador === perfil.nombre){ alert("Este partido es tuyo"); return; }
   if((p.solicitudes||[]).some(s => s.nombre === perfil.nombre)){ alert("Ya mandaste solicitud"); return; }
   if((p.confirmados||[]).some(c => nombreDeConfirmado(c) === perfil.nombre)){ alert("Ya estás confirmado"); return; }
