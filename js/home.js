@@ -57,7 +57,7 @@ async function cargarCreadorTarjeta(p){
     const rating = Number(datos.rating);
     target.textContent = total > 0 && Number.isFinite(rating) ? `★ ${rating.toFixed(1)} (${total})` : 'Sin opiniones';
     const avatar = document.getElementById('cardCreatorAvatar');
-    if(avatar && typeof datos.foto === 'string' && /^https?:\/\//.test(datos.foto)){
+    if(avatar && typeof datos.foto === 'string' && (/^https?:\/\//.test(datos.foto) || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(datos.foto))){
       const img = document.createElement('img');
       img.src = datos.foto;
       img.alt = '';
@@ -184,7 +184,9 @@ window.match = async () => {
   if((p.solicitudes||[]).some(s => s.nombre === state.perfil.nombre)){ alert("Ya mandaste solicitud"); return; }
   if((p.confirmados||[]).some(c => nombreDeConfirmado(c) === state.perfil.nombre)){ alert("Ya estás confirmado"); return; }
 
-  let nuevasSolicitudes = [...(p.solicitudes||[]), {...state.perfil, uid: state.usuario.uid}];
+  // Las imágenes se consultan por UID; no duplicarlas dentro de cada partido.
+  const { foto, jugadas, ...perfilSolicitud } = state.perfil;
+  let nuevasSolicitudes = [...(p.solicitudes||[]), {...perfilSolicitud, uid: state.usuario.uid}];
   await updateDoc(doc(db, "partidos", p.id), { solicitudes: nuevasSolicitudes });
 
   // Notificación al creador en Firebase
