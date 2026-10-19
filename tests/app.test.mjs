@@ -78,7 +78,7 @@ async function boot(original = false) {
   const entry = await getModule(original || path.join(root, 'js/main.js'));
   await entry.link((specifier, parent) => getModule(specifier.startsWith('https:') ? specifier : path.resolve(path.dirname(parent.identifier), specifier)));
   await entry.evaluate();
-  return { sandbox, element, elements, profile, match, listeners, writes, auth: user => authCallback(user) };
+  return { sandbox, element, elements, profile, match, listeners, writes, firestore, auth: user => authCallback(user) };
 }
 
 async function exercise(app) {
@@ -150,4 +150,45 @@ test('tarjeta móvil, dirección desplegable y solicitud al partido filtrado', a
  await a.sandbox.match();
  assert.ok(a.writes.some(([kind,target])=>kind==='update'&&target==='partidos/match-b'));
  assert.ok(!a.writes.some(([kind,target])=>kind==='update'&&target==='partidos/match-a'));
+});
+
+
+test('guarda avatar sin Storage y conserva cambios pendientes si Firestore falla', async () => {
+  const a = await boot();
+  await a.auth({uid:'user-1'});
+  const avatar = 'data:image/jpeg;base64,YWJj';
+  a.sandbox.Image = class {
+    width = 640; height = 480;
+    set src(value){ this.onload(); }
+  };
+  a.sandbox.File = class {
+    constructor(parts, name, options){ this.size = parts[0].size; this.name = name; this.type = options.type; }
+  };
+  a.sandbox.FileReader = class {
+    readAsDataURL(){ this.result = avatar; this.onload({target:{result:avatar}}); }
+  };
+  a.sandbox.document.createElement = () => ({
+    getContext: () => ({drawImage(){}}),
+    toBlob: cb => cb({size:1024}),
+  });
+  a.sandbox.editarPerfil();
+  await a.sandbox.previsualizarFoto({files:[{name:'foto.jpg',type:'image/jpeg',size:2048}]}, 'previewFotoEdit');
+  await a.sandbox.guardarPerfil();
+  const saved = a.writes.find(([kind, target, data])=>kind==='update' && target==='usuarios/user-1' && data.foto===avatar);
+  assert.ok(saved, 'el avatar se guarda directamente en Firestore');
+  assert.equal(a.profile.foto, avatar);
+  a.profile.foto = 'anterior.jpg';
+  await a.sandbox.previsualizarFoto({files:[{name:'foto.jpg',type:'image/jpeg',size:2048}]}, 'previewFotoEdit');
+  // La función de escritura delega en push; simular rechazo sin tocar datos reales.
+  const push = a.writes.push;
+  a.writes.push = () => { throw new Error('sin conexión'); };
+  let aviso = '';
+  a.sandbox.alert = text => { aviso = text; };
+  a.sandbox.console = { ...console, error(){} };
+  await a.sandbox.guardarPerfil();
+  assert.equal(a.profile.foto, 'anterior.jpg');
+  assert.match(aviso, /No se pudieron guardar/);
+  a.writes.push = push;
+  await a.sandbox.guardarPerfil();
+  assert.equal(a.profile.foto, avatar, 'permite reintentar sin volver a elegir la foto');
 });
