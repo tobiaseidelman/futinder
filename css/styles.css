@@ -318,16 +318,17 @@
 #home .topbar-title { font-size:26px; }
 #home .icon-btn { border:1px solid #303030; border-radius:13px; }
 #home .cards-area { justify-content:flex-start; padding:8px 16px 96px; }
-#home .partido-card { border:1px solid #333; border-radius:22px; box-shadow:0 12px 32px #0004; }
-#home .card-img { height:clamp(190px,34svh,320px); }
-#home .card-img-overlay { height:115px; padding:18px; background:linear-gradient(transparent,rgba(0,0,0,.92)); }
+#home .partido-card { background:#0b0d0c; border:1px solid #ffffff12; border-radius:22px; box-shadow:0 12px 32px #0004; isolation:isolate; }
+#home .card-img { height:clamp(260px,42svh,380px); position:static; overflow:visible; }
+#home .card-img-bg { position:absolute; inset:0 0 auto; height:80%; z-index:-1; background-position:center top; -webkit-mask-image:linear-gradient(#000 0%,#000 28%,#000b 47%,#0005 70%,transparent 100%); mask-image:linear-gradient(#000 0%,#000 28%,#000b 47%,#0005 70%,transparent 100%); }
+#home .card-img-overlay { position:relative; height:100%; padding:20px 20px 12px; background:none; text-shadow:0 2px 12px #000b; }
 #home .card-cancha-name { border:0; background:none; text-align:left; padding:0; max-width:100%; font:inherit; color:white; cursor:pointer; }
-.cancha-heading { display:flex; align-items:center; gap:8px; font-family:'Bebas Neue',sans-serif; font-size:29px; line-height:1.1; letter-spacing:.5px; }
+.cancha-heading { display:flex; align-items:center; gap:8px; font-family:'Bebas Neue',sans-serif; font-size:32px; line-height:1.05; letter-spacing:.5px; }
 .cancha-heading svg { width:19px; height:19px; flex-shrink:0; color:var(--green); }
 .cancha-location-hint { display:block; font-family:'DM Sans',sans-serif; font-size:11px; color:#ddd; margin-top:6px; }
-#home .distance-popup { bottom:84px; left:14px; right:14px; padding:13px 15px; border-radius:12px; color:#eee; background:#101010f5; line-height:1.5; font-size:12px; box-shadow:0 6px 22px #0006; }
+#home .distance-popup { bottom:auto; top:18px; left:14px; right:14px; padding:13px 15px; border-radius:12px; color:#eee; background:#101010f5; line-height:1.5; font-size:12px; box-shadow:0 6px 22px #0006; }
 .distance-value { display:block; color:var(--green); margin-top:5px; }
-#home .card-body { padding:15px 16px 16px; }
+#home .card-body { padding:0 20px 18px; position:relative; }
 .match-summary { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
 .match-date { color:#ddd; font-size:12px; text-transform:capitalize; }
 .match-time { font-size:25px; font-weight:600; letter-spacing:-.7px; line-height:1.25; margin-top:3px; }
@@ -335,23 +336,24 @@
 .match-price strong { display:block; font-size:22px; font-weight:600; line-height:1.3; }
 .match-price small { display:block; font-size:10px; color:#aaa; margin-top:2px; }
 .match-meta { display:flex; gap:8px; margin-top:10px; }
-.match-meta span { font-size:11px; color:#ccc; background:#242424; border:1px solid #333; border-radius:7px; padding:4px 9px; }
+.match-meta span { font-size:11px; color:#ccc; background:#ffffff0a; border:1px solid #ffffff18; border-radius:20px; padding:4px 10px; }
 #home .jugadores-bar { margin:14px 0 12px; }
 #home .jugadores-label { font-size:11px; margin-bottom:8px; align-items:center; gap:8px; }
 #home .jugadores-label .spots-left { color:var(--green); font-size:13px; font-weight:600; }
 #home .jugadores-label .spots-total { color:#aaa; font-weight:400; }
 #home .bar-bg { height:5px; }
-#home .creador-row { margin:0; padding-top:12px; border-top:1px solid #2b2b2b; gap:9px; }
+#home .creador-row { margin:0; padding-top:12px; border-top:1px solid #ffffff12; gap:9px; }
 #home .creador-avatar { width:34px; height:34px; border-radius:50%; overflow:hidden; background:#16310f; }
 #home .creador-avatar img { width:100%; height:100%; object-fit:cover; }
 #home .creador-nombre { font-size:12px; font-weight:600; }
 #home .creador-sub { font-size:10px; margin-top:3px; color:#aaa; }
 #home .creator-rating { color:#ddd; font-size:11px; white-space:nowrap; }
-#home .card-actions { gap:10px; margin-top:13px; }
-#home .action-btn { font-size:13px; min-height:46px; border-radius:12px; padding:12px 8px; display:flex; align-items:center; justify-content:center; gap:9px; }
-#home .btn-no { flex:.8; background:#222; border:1px solid #444; color:#eee; }
-#home .btn-yes { flex:1.2; background:var(--green); border:1px solid var(--green); color:#091600; }
-#home .action-symbol { font-size:20px; line-height:1; }
+#home .card-actions { gap:32px; margin-top:16px; justify-content:center; }
+#home .action-btn { flex:0 0 100px; min-height:86px; border:0; border-radius:16px; padding:0 4px; background:none; font-size:11px; font-weight:500; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; color:#ddd; }
+#home .action-symbol { display:flex; align-items:center; justify-content:center; width:58px; height:58px; border-radius:50%; font-size:32px; line-height:1; background:#111713; transition:transform .18s ease,background .18s ease; }
+#home .btn-no .action-symbol { color:#ff526c; border:1.5px solid #ff526c; background:#211116; }
+#home .btn-yes .action-symbol { color:var(--green); border:1.5px solid var(--green); background:#14210e; }
+#home .action-btn:active .action-symbol { transform:scale(.9); }
 #home .swipe-hint { font-size:10px; color:#aaa; gap:22px; margin-top:12px; }
 #home .swipe-overlay { z-index:8; font-size:42px; }
 #home button:focus-visible { outline:2px solid var(--green); outline-offset:3px; }
@@ -360,5 +362,5 @@
 #home .nav-btn.active .nav-icon { background:#16310f; border-radius:10px; }
 #home .nav-icon { min-width:38px; height:28px; display:flex; align-items:center; justify-content:center; }
 #home .nav-icon svg,#home .icon-btn svg { width:21px; height:21px; }
-@media(max-height:720px) { #home .card-img { height:clamp(155px,29svh,205px); } #home .card-body { padding:12px 14px; } #home .jugadores-bar { margin:10px 0; } #home .creador-row { padding-top:9px; } #home .card-actions { margin-top:10px; } #home .swipe-hint { margin-top:8px; } }
+@media(max-height:720px) { #home .card-img { height:clamp(200px,34svh,250px); } #home .card-body { padding:0 18px 12px; } #home .action-symbol { width:50px; height:50px; } #home .action-btn { min-height:74px; } #home .jugadores-bar { margin:10px 0; } #home .creador-row { padding-top:9px; } #home .card-actions { margin-top:10px; } #home .swipe-hint { margin-top:8px; } }
 @media(prefers-reduced-motion:reduce) { #home * { transition:none!important; animation:none!important; } }
