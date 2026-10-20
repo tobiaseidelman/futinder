@@ -47,14 +47,33 @@ window.selCancha = (id) => {
 
 // Pedir ubicación del usuario
 function pedirUbicacion(){
-  if(navigator.geolocation){
+  return new Promise(resolve => {
+    if(!navigator.geolocation){ resolve(false); return; }
     navigator.geolocation.getCurrentPosition(pos => {
       state.userLat = pos.coords.latitude;
       state.userLng = pos.coords.longitude;
       renderCanchaSelector();
-    }, () => {});
-  }
+      resolve(true);
+    }, () => resolve(false), {enableHighAccuracy:false,timeout:10000,maximumAge:300000});
+  });
+}
+
+let usuarioConsultado = null;
+async function pedirPermisosSesion(uid){
+  if(usuarioConsultado === uid) return;
+  usuarioConsultado = uid;
+  state.rutasPermitidas = false;
+  await pedirUbicacion();
+  if(usuarioConsultado !== uid) return;
+  state.rutasPermitidas = confirm('¿Querés ver cuánto tardás en llegar a las canchas? Al aceptar, se enviará tu ubicación aproximada y la cancha a OSRM para calcular el recorrido. Los tiempos son estimados, sin tráfico en vivo.');
+}
+function reiniciarPermisosSesion(){
+  usuarioConsultado = null;
+  state.rutasPermitidas = false;
+  state.userLat = null;
+  state.userLng = null;
 }
 
 
-export { calcularDistancia, renderCanchaSelector, pedirUbicacion };
+
+export { calcularDistancia, renderCanchaSelector, pedirUbicacion, pedirPermisosSesion, reiniciarPermisosSesion };
