@@ -340,3 +340,21 @@
 
 .car-time-trigger { background:none; border:0; padding:8px 0 2px 25px; font:inherit; font-size:11px; color:var(--green); cursor:pointer; text-align:left; }
 .car-time-trigger:focus-visible { outline:1px solid var(--green); outline-offset:3px; }
+
+/* Foto de perfil: recorte circular y visor */
+.foto-ampliable{cursor:zoom-in}
+.foto-ampliable:focus-visible{outline:2px solid var(--green);outline-offset:4px}
+.foto-dialog{box-sizing:border-box;width:min(92vw,420px);max-height:90dvh;overflow:auto;margin:auto;padding:22px;background:var(--surface,#151515);color:var(--text,#fff);border:1px solid #383838;border-radius:20px;font-family:'DM Sans',sans-serif}
+.foto-dialog::backdrop{background:rgba(0,0,0,.82)}
+.foto-dialog h2{margin:0 0 12px;font-size:22px}
+.foto-dialog p{font-size:13px;line-height:1.5;color:var(--text-muted,#aaa)}
+.foto-recorte{display:block;width:min(100%,280px);height:auto;aspect-ratio:1;margin:20px auto;border-radius:50%;outline:2px solid var(--green);touch-action:none;cursor:grab}
+.foto-recorte:active{cursor:grabbing}
+.foto-dialog label{display:block;margin:16px 0;font-size:13px}
+.foto-dialog input[type=range]{display:block;width:100%;margin:12px 0;accent-color:var(--green)}
+.foto-acciones{display:flex;gap:12px}
+.foto-dialog button{min-height:44px;padding:10px 18px;border:1px solid #444;border-radius:10px;background:#242424;color:#fff;font:inherit;cursor:pointer}
+.foto-acciones button{flex:1}
+.foto-dialog .foto-confirmar{background:var(--green);border-color:var(--green);color:#000;font-weight:700}
+.foto-visor{width:100%;max-height:55dvh;overflow:auto;border-radius:12px;background:#080808}
+.foto-visor img{display:block;width:100%;max-width:none;height:auto}
