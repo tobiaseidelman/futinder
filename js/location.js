@@ -65,7 +65,17 @@ async function pedirPermisosSesion(uid){
   state.rutasPermitidas = false;
   await pedirUbicacion();
   if(usuarioConsultado !== uid) return;
-  state.rutasPermitidas = confirm('¿Querés ver cuánto tardás en llegar a las canchas? Al aceptar, se enviará tu ubicación aproximada y la cancha a OSRM para calcular el recorrido. Los tiempos son estimados, sin tráfico en vivo. Rutas: OSRM / © OpenStreetMap.');
+  const clavePermiso = `futinder:osrm:v1:${uid}`;
+  try {
+    if(localStorage.getItem(clavePermiso) === 'aceptado'){
+      state.rutasPermitidas = true;
+      return;
+    }
+  } catch(e) { /* Si el navegador bloquea el almacenamiento, pedir permiso para esta sesión. */ }
+  state.rutasPermitidas = confirm('¿Querés ver cuánto tardás en llegar a las canchas? Al aceptar, se enviará tu ubicación aproximada y la cancha a OSRM para calcular el recorrido. Los tiempos son estimados, sin tráfico en vivo. Rutas: OSRM / © OpenStreetMap. Recordaremos tu aceptación en este navegador.');
+  if(state.rutasPermitidas){
+    try { localStorage.setItem(clavePermiso, 'aceptado'); } catch(e) { /* Mantener el permiso solo durante esta sesión. */ }
+  }
 }
 function reiniciarPermisosSesion(){
   usuarioConsultado = null;
