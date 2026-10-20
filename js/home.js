@@ -104,42 +104,46 @@ window.render = () => {
   const faltan = Math.max(0, p.max - p.jugadores);
   const tieneUbicacion = [state.userLat, state.userLng, p.canchaLat, p.canchaLng].every(v => typeof v === 'number' && Number.isFinite(v));
   card.innerHTML = `
-    <div class="partido-card">
-      <div class="swipe-overlay yes">QUIERO JUGAR</div>
-      <div class="swipe-overlay no">PASO</div>
+    <div class="partido-card" style="position:relative;">
+      <div class="swipe-overlay yes">QUIERO ✅</div>
+      <div class="swipe-overlay no">❌ PASO</div>
       <div class="card-img">
         <div class="card-img-bg" style="background-image:url('${p.canchaFoto||'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600'}')"></div>
         <div class="card-img-overlay">
-          <button class="card-cancha-name" id="canchaLocationBtn" onclick="toggleDist()" aria-expanded="false" aria-controls="distPopup">
-            <span class="cancha-heading"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>${textoTarjeta(p.cancha)}</span>
-            <span class="cancha-location-hint">Ver dirección y distancia ›</span>
-          </button>
+          <div class="card-cancha-name" id="canchaLocationBtn" role="button" tabindex="0" aria-expanded="false" aria-controls="distPopup" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleDist();}" onclick="toggleDist()">${p.cancha}</div>
         </div>
-        <div class="distance-popup" id="distPopup" role="region" aria-label="Ubicación de la cancha">
-          <span>${textoTarjeta(p.canchaDireccion || 'Dirección no disponible')}</span>
-          ${tieneUbicacion ? `<span class="distance-value">A ${calcularDistancia(state.userLat,state.userLng,p.canchaLat,p.canchaLng)} km de vos · en línea recta</span>` : ''}
+        <div class="distance-popup" id="distPopup">
+          ${(state.userLat&&state.userLng&&p.canchaLat)?`📍 ${calcularDistancia(state.userLat,state.userLng,p.canchaLat,p.canchaLng)} km`:textoTarjeta(p.canchaDireccion || '📍 Ubicación no disponible')}
         </div>
       </div>
       <div class="card-body">
-        <div class="match-summary">
-          <div><div class="match-date">${textoTarjeta(fechaTarjeta(p.fecha))}</div><div class="match-time">${textoTarjeta(p.hora)}</div></div>
-          <div class="match-price"><strong>$${textoTarjeta(p.precio || 0)}</strong><small>UYU · por persona</small></div>
+        <div class="card-row">
+          ${p.fecha?`<div class="card-tag">📅 <span>${p.fecha}</span></div>`:''}
+          <div class="card-tag">🕓 <span>${p.hora}</span></div>
+          <div class="card-tag">⏱️ <span>${p.duracion||'1h'}</span></div>
+          <div class="card-tag">⚽ <span>Fútbol ${p.tipo}</span></div>
         </div>
-        <div class="match-meta"><span>Fútbol ${textoTarjeta(p.tipo)}</span><span>${textoTarjeta(p.duracion || '1h')}</span></div>
         <div class="jugadores-bar">
-          <div class="jugadores-label"><span class="spots-left">${faltan === 1 ? 'Falta 1 jugador' : `Faltan ${faltan} jugadores`}</span><span class="spots-total">${p.jugadores} de ${p.max} cupos</span></div>
+          <div class="jugadores-label"><span>👥 Jugadores</span><span>${p.jugadores}/${p.max}</span></div>
           <div class="bar-bg"><div class="bar-fill" style="width:${fill}%"></div></div>
         </div>
-        <div class="creador-row" role="button" tabindex="0" onclick="abrirPerfilJugador(${textoTarjeta(JSON.stringify(p.creadorUid || ''))},${textoTarjeta(JSON.stringify(p.creador || ''))})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
-          <div class="creador-avatar" id="cardCreatorAvatar">${textoTarjeta((p.creador || '?')[0].toUpperCase())}</div>
-          <div class="creador-info"><div class="creador-nombre">${textoTarjeta(p.creador)}</div><div class="creador-sub">Organiza el partido</div></div>
-          <span class="creator-rating" id="cardCreatorRating" data-partido="${textoTarjeta(p.id)}">Ver perfil</span>
-          <span aria-hidden="true" style="color:var(--text-muted)">›</span>
+        <div class="card-row">
+          <div class="card-tag">💰 <span>$${p.precio||0} / persona</span></div>
+          ${p.canchaDireccion?`<div class="card-tag" style="font-size:11px;">📍 <span>${p.canchaDireccion}</span></div>`:''}
+        </div>
+        <div class="creador-row" onclick="abrirPerfilJugador('${p.creadorUid}','${p.creador}')">
+          <div class="creador-avatar" id="cardCreatorAvatar">${p.creador?p.creador[0].toUpperCase():'?'}</div>
+          <div class="creador-info">
+            <div class="creador-nombre">👨‍🔧 ${p.creador}</div>
+            <div class="creador-sub" id="cardCreatorRating" data-partido="${textoTarjeta(p.id)}">Creador</div>
+          </div>
+          <span style="color:var(--text-muted)">›</span>
         </div>
         <div class="card-actions">
-          <button class="action-btn btn-no" onclick="next()"><span class="action-symbol" aria-hidden="true">×</span> Paso</button>
-          <button class="action-btn btn-yes" onclick="match()"><span class="action-symbol" aria-hidden="true">✓</span> Quiero jugar</button>
+          <button class="action-btn btn-no" onclick="next()">❌ Paso</button>
+          <button class="action-btn btn-yes" onclick="match()">✅ Quiero</button>
         </div>
+        ${(esCreador||confirmado)?`<button onclick="abrirChatIdx(${state.idx})" style="width:100%;margin-top:10px;padding:12px;background:var(--surface2);border:1px solid #333;border-radius:var(--radius-sm);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;">💬 Ir al chat</button>`:''}
       </div>
     </div>`;
   initSwipe();
