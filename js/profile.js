@@ -2,6 +2,7 @@ import { ref, storage, uploadBytes, getDownloadURL, updateDoc, doc, db, arrayUni
 import { state } from './state.js';
 import { iniciarPartidos } from './matches.js';
 import { iniciarNotificaciones } from './notifications.js';
+import { pedirPermisosSesion } from './location.js';
 import { TAGS } from './data/tags.js';
 
 // ---- PERFIL ----
@@ -150,6 +151,7 @@ window.crearPerfil = async () => {
   iniciarPartidos();
   iniciarNotificaciones();
   irHome();
+  await pedirPermisosSesion(state.usuario.uid);
 };
 
 window.verMiPerfil = () => {
