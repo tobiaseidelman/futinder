@@ -5,6 +5,9 @@ import { nombreDeConfirmado } from './matches.js';
 import { partidoPasaFiltros, filtros } from './filters.js';
 import { calcularDistancia } from './location.js';
 
+let canchaDistActual = null;
+let ubicacionPendiente = false;
+
 // ---- SWIPE ----
 let startX = 0, isDragging = false, cardEl = null, currentX = 0;
 function initSwipe(){
@@ -101,6 +104,7 @@ window.render = () => {
   let fill = Math.round((p.jugadores / p.max) * 100);
   let esCreador = state.perfil && p.creador === state.perfil.nombre;
   let confirmado = state.perfil && p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === state.perfil.nombre);
+  canchaDistActual = p;
   const faltan = Math.max(0, p.max - p.jugadores);
   const tieneUbicacion = [state.userLat, state.userLng, p.canchaLat, p.canchaLng].every(v => typeof v === 'number' && Number.isFinite(v));
   card.innerHTML = `
@@ -112,24 +116,23 @@ window.render = () => {
         <div class="card-img-overlay">
           <div class="card-cancha-name" id="canchaLocationBtn" role="button" tabindex="0" aria-expanded="false" aria-controls="distPopup" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleDist();}" onclick="toggleDist()">${p.cancha}</div>
         </div>
-        <div class="distance-popup" id="distPopup">
-          ${(state.userLat&&state.userLng&&p.canchaLat)?`📍 ${calcularDistancia(state.userLat,state.userLng,p.canchaLat,p.canchaLng)} km`:textoTarjeta(p.canchaDireccion || '📍 Ubicación no disponible')}
-        </div>
       </div>
       <div class="card-body">
-        <div class="card-row">
-          ${p.fecha?`<div class="card-tag">📅 <span>${p.fecha}</span></div>`:''}
-          <div class="card-tag">🕓 <span>${p.hora}</span></div>
-          <div class="card-tag">⏱️ <span>${p.duracion||'1h'}</span></div>
-          <div class="card-tag">⚽ <span>Fútbol ${p.tipo}</span></div>
+        <div class="match-details">
+          <div class="match-schedule"><span class="match-date">${textoTarjeta(fechaTarjeta(p.fecha))}</span><strong class="match-hour">${textoTarjeta(p.hora || 'A confirmar')}</strong></div>
+          <div class="match-cost"><strong>$${textoTarjeta(p.precio || 0)}</strong><span>por persona · UYU</span></div>
         </div>
+        <div class="match-format"><span>Fútbol ${textoTarjeta(p.tipo)}</span><span class="format-dot" aria-hidden="true">·</span><span>${textoTarjeta(p.duracion || '1h')} de juego</span></div>
         <div class="jugadores-bar">
           <div class="jugadores-label"><span>👥 Jugadores</span><span>${p.jugadores}/${p.max}</span></div>
           <div class="bar-bg"><div class="bar-fill" style="width:${fill}%"></div></div>
         </div>
-        <div class="card-row">
-          <div class="card-tag">💰 <span>$${p.precio||0} / persona</span></div>
-          ${p.canchaDireccion?`<div class="card-tag" style="font-size:11px;">📍 <span>${p.canchaDireccion}</span></div>`:''}
+        <div class="match-location" onmouseenter="mostrarDistancia()" onmouseleave="ocultarDistancia()" onfocusin="mostrarDistancia()" onfocusout="ocultarDistancia()">
+          <button class="location-trigger" id="direccionLocationBtn" type="button" onclick="verDistanciaDireccion()" aria-expanded="false" aria-controls="distPopup">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            <span>${textoTarjeta(p.canchaDireccion || 'Ver ubicación de la cancha')}</span><span aria-hidden="true">›</span>
+          </button>
+          <div class="distance-popup" id="distPopup" role="status" aria-live="polite"></div>
         </div>
         <div class="creador-row" onclick="abrirPerfilJugador('${p.creadorUid}','${p.creador}')">
           <div class="creador-avatar" id="cardCreatorAvatar">${p.creador?p.creador[0].toUpperCase():'?'}</div>
@@ -150,10 +153,50 @@ window.render = () => {
   cargarCreadorTarjeta(p);
 };
 
+function textoDistancia(){
+  const p = canchaDistActual;
+  if(!p || ![p.canchaLat,p.canchaLng].every(v => typeof v === 'number' && Number.isFinite(v))) return 'Esta cancha todavía no tiene coordenadas.';
+  if([state.userLat,state.userLng].every(v => typeof v === 'number' && Number.isFinite(v))) return `${calcularDistancia(state.userLat,state.userLng,p.canchaLat,p.canchaLng)} km desde tu ubicación · en línea recta`;
+  return ubicacionPendiente ? 'Buscando tu ubicación…' : 'Tocá la dirección y permití tu ubicación para ver la distancia.';
+}
+window.mostrarDistancia = () => {
+  const popup = document.getElementById('distPopup');
+  if(!popup) return;
+  popup.textContent = textoDistancia();
+  popup.classList.add('show');
+  for(const id of ['canchaLocationBtn','direccionLocationBtn']) document.getElementById(id)?.setAttribute('aria-expanded','true');
+};
+window.ocultarDistancia = () => {
+  document.getElementById('distPopup')?.classList.remove('show');
+  for(const id of ['canchaLocationBtn','direccionLocationBtn']) document.getElementById(id)?.setAttribute('aria-expanded','false');
+};
+window.verDistanciaDireccion = () => {
+  if([state.userLat,state.userLng].every(v => typeof v === 'number' && Number.isFinite(v))) mostrarDistancia();
+  else toggleDist();
+};
 window.toggleDist = () => {
   const popup = document.getElementById('distPopup');
-  popup.classList.toggle('show');
-  document.getElementById('canchaLocationBtn')?.setAttribute('aria-expanded', String(popup.classList.contains('show')));
+  if(!popup) return;
+  const faltaUbicacion = ![state.userLat,state.userLng].every(v => typeof v === 'number' && Number.isFinite(v));
+  if(faltaUbicacion && canchaDistActual && [canchaDistActual.canchaLat,canchaDistActual.canchaLng].every(v=>typeof v === 'number' && Number.isFinite(v))){
+    mostrarDistancia();
+    if(ubicacionPendiente) return;
+    if(!navigator.geolocation){ popup.textContent = 'Tu navegador no permite consultar la ubicación.'; return; }
+    ubicacionPendiente = true;
+    popup.textContent = textoDistancia();
+    navigator.geolocation.getCurrentPosition(pos => {
+      ubicacionPendiente = false;
+      state.userLat = pos.coords.latitude; state.userLng = pos.coords.longitude;
+      const actual = document.getElementById('distPopup');
+      if(actual) actual.textContent = textoDistancia();
+    }, error => {
+      ubicacionPendiente = false;
+      const actual = document.getElementById('distPopup');
+      if(actual) actual.textContent = error.code === 1 ? 'Ubicación bloqueada. Permitila en los ajustes del navegador para ver la distancia.' : 'No pudimos obtener tu ubicación. Tocá la dirección para reintentar.';
+    }, {enableHighAccuracy:false,timeout:10000,maximumAge:300000});
+    return;
+  }
+  if(popup.classList.contains('show')) ocultarDistancia(); else mostrarDistancia();
 };
 window.next = () => {
   let ahora = Date.now();
