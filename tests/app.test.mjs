@@ -143,8 +143,8 @@ test('tarjeta móvil, dirección desplegable y solicitud al partido filtrado', a
  a.sandbox.aplicarFiltrosUI();a.sandbox.render();
  const html=a.element('card').innerHTML;
  assert.match(html,/Cancha B/);assert.doesNotMatch(html,/Cancha A/);
- assert.match(html,/Faltan 3 jugadores/);assert.match(html,/Dirección de prueba/);
- assert.match(html,/Quiero jugar/);assert.doesNotMatch(html,/4\.8/);
+ assert.match(html,/7\/10/);assert.match(html,/Dirección de prueba/);
+ assert.match(html,/✅ Quiero/);assert.doesNotMatch(html,/4\.8/);
  a.sandbox.toggleDist();assert.equal(a.element('canchaLocationBtn')['aria-expanded'],'true');
  a.sandbox.toggleDist();assert.equal(a.element('canchaLocationBtn')['aria-expanded'],'false');
  await a.sandbox.match();
