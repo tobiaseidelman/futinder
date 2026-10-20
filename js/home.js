@@ -7,7 +7,6 @@ import { calcularDistancia } from './location.js';
 
 let canchaDistActual = null;
 let ubicacionPendiente = false;
-let rutasPermitidas = false;
 let ultimaConsultaRuta = 0;
 const rutasAuto = new Map();
 
@@ -19,7 +18,7 @@ function claveRutaAuto(){
 }
 async function actualizarTiempoAuto(){
   const clave = claveRutaAuto();
-  if(!rutasPermitidas || !clave) return;
+  if(!state.rutasPermitidas || !clave) return;
   const anterior = rutasAuto.get(clave);
   if(anterior && Date.now() - anterior.fecha < (anterior.error ? 30000 : 300000)){
     if(anterior.promesa) await anterior.promesa;
@@ -57,10 +56,7 @@ function pintarTiempoAuto(clave){
   if(popup && entrada) popup.textContent = entrada.error ? `${textoDistancia()} · ${entrada.texto}` : entrada.texto;
 }
 window.calcularTiempoAuto = async () => {
-  if(!rutasPermitidas){
-    if(!confirm('Para estimar los minutos en auto, se enviará tu ubicación aproximada y la cancha al servicio de rutas OSRM. ¿Querés continuar?')) return;
-    rutasPermitidas = true;
-  }
+  if(!state.rutasPermitidas) return;
   if(!claveRutaAuto()){ toggleDist(); return; }
   mostrarDistancia();
   await actualizarTiempoAuto();
@@ -190,7 +186,6 @@ window.render = () => {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
             <span>${textoTarjeta(p.canchaDireccion || 'Ver ubicación de la cancha')}</span><span aria-hidden="true">›</span>
           </button>
-          <button class="car-time-trigger" type="button" onclick="calcularTiempoAuto()">Ver minutos en auto</button>
           <div class="distance-popup" id="distPopup" role="status" aria-live="polite"></div>
         </div>
         <div class="creador-row" onclick="abrirPerfilJugador('${p.creadorUid}','${p.creador}')">
@@ -223,7 +218,7 @@ window.mostrarDistancia = () => {
   if(!popup) return;
   popup.textContent = textoDistancia();
   popup.classList.add('show');
-  if(rutasPermitidas) void actualizarTiempoAuto();
+  if(state.rutasPermitidas) void actualizarTiempoAuto();
   for(const id of ['canchaLocationBtn','direccionLocationBtn']) document.getElementById(id)?.setAttribute('aria-expanded','true');
 };
 window.ocultarDistancia = () => {
@@ -249,7 +244,7 @@ window.toggleDist = () => {
       state.userLat = pos.coords.latitude; state.userLng = pos.coords.longitude;
       const actual = document.getElementById('distPopup');
       if(actual) actual.textContent = textoDistancia();
-      if(rutasPermitidas) void actualizarTiempoAuto();
+      if(state.rutasPermitidas) void actualizarTiempoAuto();
     }, error => {
       ubicacionPendiente = false;
       const actual = document.getElementById('distPopup');
