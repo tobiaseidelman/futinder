@@ -1,3 +1,4 @@
+import { doc, db, updateDoc } from './firebase.js';
 import { state } from './state.js';
 import { CANCHAS } from './data/canchas.js';
 
@@ -60,23 +61,28 @@ function pedirUbicacion(){
 
 let usuarioConsultado = null;
 async function pedirPermisosSesion(uid){
-  if(usuarioConsultado === uid) return;
+  if(!state.perfil || state.usuario?.uid !== uid || usuarioConsultado === uid) return;
   usuarioConsultado = uid;
   state.rutasPermitidas = false;
   await pedirUbicacion();
-  if(usuarioConsultado !== uid) return;
-  const clavePermiso = `futinder:osrm:v1:${uid}`;
+  if(usuarioConsultado !== uid || state.usuario?.uid !== uid) return;
+  if(state.perfil.consentimientoOsrm === true){
+    state.rutasPermitidas = true;
+    return;
+  }
+  const aceptado = confirm('¿Querés ver cuánto tardás en llegar a las canchas? Al aceptar, se enviará tu ubicación aproximada y la cancha a OSRM para calcular el recorrido. Los tiempos son estimados, sin tráfico en vivo. Rutas: OSRM / © OpenStreetMap. Recordaremos tu aceptación en tu cuenta, también en otros dispositivos.');
+  if(!aceptado) return;
+  state.rutasPermitidas = true;
   try {
-    if(localStorage.getItem(clavePermiso) === 'aceptado'){
-      state.rutasPermitidas = true;
-      return;
+    await updateDoc(doc(db, 'usuarios', uid), {consentimientoOsrm:true});
+    if(usuarioConsultado === uid && state.usuario?.uid === uid) state.perfil.consentimientoOsrm = true;
+  } catch(e) {
+    if(usuarioConsultado === uid && state.usuario?.uid === uid){
+      alert('El permiso quedó activo por esta sesión, pero no pudimos guardarlo en tu cuenta. Te lo volveremos a pedir al entrar.');
     }
-  } catch(e) { /* Si el navegador bloquea el almacenamiento, pedir permiso para esta sesión. */ }
-  state.rutasPermitidas = confirm('¿Querés ver cuánto tardás en llegar a las canchas? Al aceptar, se enviará tu ubicación aproximada y la cancha a OSRM para calcular el recorrido. Los tiempos son estimados, sin tráfico en vivo. Rutas: OSRM / © OpenStreetMap. Recordaremos tu aceptación en este navegador.');
-  if(state.rutasPermitidas){
-    try { localStorage.setItem(clavePermiso, 'aceptado'); } catch(e) { /* Mantener el permiso solo durante esta sesión. */ }
   }
 }
+
 function reiniciarPermisosSesion(){
   usuarioConsultado = null;
   state.rutasPermitidas = false;
