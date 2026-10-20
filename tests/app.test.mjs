@@ -214,3 +214,35 @@ test('dirección: hover, permiso, distancia con coordenadas cero y errores', asy
   a.sandbox.verDistanciaDireccion();
   assert.equal(a.element('distPopup').classList.contains('show'),true,'el click después del foco mantiene la distancia visible');
 });
+
+test('ruta en auto: consentimiento, minutos, caché y origen aproximado', async () => {
+  const a=await boot(); await a.auth({uid:'user-1'});
+  const p={...a.match,id:'ruta',creador:'Lucas',confirmados:[],canchaLat:-34.9,canchaLng:-56.15};
+  a.listeners.get('partidos')({docs:[{id:p.id,data:()=>p}]});a.sandbox.render();
+  a.sandbox.navigator.geolocation={getCurrentPosition(ok){ok({coords:{latitude:-34.9012345,longitude:-56.1712345}});}};
+  a.sandbox.verDistanciaDireccion();
+  a.sandbox.AbortController=AbortController;
+  let calls=[];
+  a.sandbox.fetch=async url=>{calls.push(url);return {ok:true,json:async()=>({code:'Ok',routes:[{distance:3400,duration:601}]})};};
+  a.sandbox.confirm=()=>false;
+  await a.sandbox.calcularTiempoAuto();assert.equal(calls.length,0);
+  a.sandbox.confirm=()=>true;
+  await a.sandbox.calcularTiempoAuto();
+  assert.match(a.element('distPopup').textContent,/🚗 11 min · 3,4 km/);
+  assert.match(a.element('distPopup').textContent,/Sin tráfico/);
+  assert.match(calls[0],/-56.171,-34.901;/);assert.doesNotMatch(calls[0],/9012345/);
+  await a.sandbox.calcularTiempoAuto();assert.equal(calls.length,1);
+});
+
+test('si falla la ruta no inventa minutos', async () => {
+  const a=await boot();await a.auth({uid:'user-1'});
+  const p={...a.match,id:'ruta',creador:'Lucas',confirmados:[],canchaLat:0,canchaLng:0};
+  a.listeners.get('partidos')({docs:[{id:p.id,data:()=>p}]});a.sandbox.render();
+  a.sandbox.navigator.geolocation={getCurrentPosition(ok){ok({coords:{latitude:0,longitude:0.01}});}};
+  a.sandbox.verDistanciaDireccion();a.sandbox.AbortController=AbortController;
+  a.sandbox.fetch=async()=>({ok:true,json:async()=>({code:'NoRoute'})});
+  await a.sandbox.calcularTiempoAuto();
+  assert.match(a.element('distPopup').textContent,/en línea recta/);
+  assert.match(a.element('distPopup').textContent,/No pudimos calcular/);
+  assert.doesNotMatch(a.element('distPopup').textContent,/🚗 \d+ min/);
+});
