@@ -79,11 +79,11 @@
     <div class="topbar-title">⚽ Futinder</div>
     <div style="display:flex;gap:8px;">
       <button class="icon-btn" id="adminBtn" onclick="verAdminPanel()" style="display:none;">🛡️</button>
-      <button class="icon-btn" aria-label="Filtrar partidos" onclick="abrirFiltros()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg> <span class="badge-dot" id="filtrosBadgeDot" style="display:none;"></span>
+      <button class="icon-btn" onclick="abrirFiltros()">
+        🎛️ <span class="badge-dot" id="filtrosBadgeDot" style="display:none;"></span>
       </button>
-      <button class="icon-btn" aria-label="Ver notificaciones" onclick="verNotificaciones()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg> <span class="badge-dot" id="badgeDot"></span>
+      <button class="icon-btn" onclick="verNotificaciones()">
+        🔔 <span class="badge-dot" id="badgeDot"></span>
       </button>
     </div>
   </div>
@@ -92,10 +92,10 @@
     <div class="swipe-hint"><span>← No me interesa</span><span>Quiero jugar →</span></div>
   </div>
   <nav class="navbar">
-    <button class="nav-btn active" onclick="irHome()"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7"/></svg></span>Inicio</button>
-    <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>Crear</button>
-    <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m12 8 4 3-2 5h-4l-2-5zM12 8V3M16 11l5-2M14 16l3 4M10 16l-3 4M8 11 3 9"/></svg></span>Mis partidos</button>
-    <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></span>Perfil</button>
+    <button class="nav-btn active" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
+    <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
+    <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
+    <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
   </nav>
 </div>
 
