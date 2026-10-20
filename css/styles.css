@@ -337,3 +337,6 @@
 .location-trigger:hover,.location-trigger:focus-visible { color:var(--text); }
 .location-trigger:focus-visible { outline:1px solid var(--green); outline-offset:4px; border-radius:4px; }
 .match-location .distance-popup { bottom:calc(100% + 7px); left:0; right:0; padding:12px; font-size:12px; line-height:1.5; box-shadow:0 5px 18px #0006; }
+
+.car-time-trigger { background:none; border:0; padding:8px 0 2px 25px; font:inherit; font-size:11px; color:var(--green); cursor:pointer; text-align:left; }
+.car-time-trigger:focus-visible { outline:1px solid var(--green); outline-offset:3px; }
