@@ -41,7 +41,7 @@ async function actualizarTiempoAuto(){
       const ruta = data.routes?.[0];
       if(data.code !== 'Ok' || !ruta || !Number.isFinite(ruta.duration) || !Number.isFinite(ruta.distance) || ruta.duration < 0 || ruta.distance < 0) throw new Error('Sin ruta');
       const min = Math.max(1,Math.ceil(ruta.duration / 60));
-      entrada.texto = `🚗 ${min} min · ${(ruta.distance / 1000).toLocaleString('es-UY',{maximumFractionDigits:1})} km. Tiempo estimado. Sin tráfico en tiempo real. Ruta: OSRM / © OpenStreetMap.`;
+      entrada.texto = `🚗 ${min} min · ${(ruta.distance / 1000).toLocaleString('es-UY',{maximumFractionDigits:1})} km. Tiempo estimado.`;
     } catch(e){
       entrada.error = true;
       entrada.texto = 'No pudimos calcular el tiempo en auto. Podés reintentar en unos segundos.';
