@@ -2,6 +2,7 @@ import { signInWithPopup, auth, provider, signOut, onAuthStateChanged, doc, db, 
 import { state } from './state.js';
 import { iniciarPartidos } from './matches.js';
 import { iniciarNotificaciones } from './notifications.js';
+import { pedirPermisosSesion, reiniciarPermisosSesion } from './location.js';
 import { esAdmin } from './admin.js';
 
 // ---- LOGIN CON GOOGLE ----
@@ -17,6 +18,7 @@ window.cerrarSesion = async () => {
   if(state.notifUnsub) state.notifUnsub();
   if(state.partidosUnsub) state.partidosUnsub();
   if(state.chatUnsub) state.chatUnsub();
+  reiniciarPermisosSesion();
   state.perfil = null; state.usuario = null; state.partidos = []; state.notificaciones = [];
   await signOut(auth);
   cambiarPantalla("login");
@@ -27,6 +29,7 @@ function iniciarAuth(){
   return onAuthStateChanged(auth, async (user) => {
   document.getElementById("loading").style.display = "none";
   if(!user){
+    reiniciarPermisosSesion();
     cambiarPantalla("login");
     return;
   }
@@ -45,6 +48,7 @@ function iniciarAuth(){
     document.getElementById("nombreNuevo").value = user.displayName || "";
     cambiarPantalla("crearPerfil");
   }
+  await pedirPermisosSesion(user.uid);
 });
 }
 
