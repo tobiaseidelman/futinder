@@ -192,3 +192,25 @@ test('guarda avatar sin Storage y conserva cambios pendientes si Firestore falla
   await a.sandbox.guardarPerfil();
   assert.equal(a.profile.foto, avatar, 'permite reintentar sin volver a elegir la foto');
 });
+
+
+test('dirección: hover, permiso, distancia con coordenadas cero y errores', async () => {
+  const a = await boot();
+  await a.auth({uid:'user-1'});
+  const p = {...a.match,id:'geo',creador:'Lucas',confirmados:[],canchaLat:0,canchaLng:0};
+  a.listeners.get('partidos')({docs:[{id:p.id,data:()=>p}]});
+  a.sandbox.render();
+  a.sandbox.mostrarDistancia();
+  assert.match(a.element('distPopup').textContent,/permití tu ubicación/);
+  a.sandbox.navigator.geolocation = {getCurrentPosition(ok,fail){fail({code:1});}};
+  a.sandbox.verDistanciaDireccion();
+  assert.match(a.element('distPopup').textContent,/Ubicación bloqueada/);
+  a.sandbox.navigator.geolocation = {getCurrentPosition(ok){ok({coords:{latitude:0,longitude:0.01}});}};
+  a.sandbox.verDistanciaDireccion();
+  assert.match(a.element('distPopup').textContent,/1.1 km.*en línea recta/);
+  a.sandbox.ocultarDistancia();
+  assert.equal(a.element('distPopup').classList.contains('show'),false);
+  a.sandbox.mostrarDistancia();
+  a.sandbox.verDistanciaDireccion();
+  assert.equal(a.element('distPopup').classList.contains('show'),true,'el click después del foco mantiene la distancia visible');
+});
