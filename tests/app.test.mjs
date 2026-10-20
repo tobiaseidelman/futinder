@@ -232,7 +232,8 @@ test('ruta en auto: consentimiento, minutos, caché y origen aproximado', async 
   await a.auth({uid:'user-1'});
   await a.sandbox.calcularTiempoAuto();
   assert.match(a.element('distPopup').textContent,/🚗 11 min · 3,4 km/);
-  assert.match(a.element('distPopup').textContent,/Sin tráfico/);
+  assert.match(a.element('distPopup').textContent,/Tiempo estimado\.$/);
+  assert.doesNotMatch(a.element('distPopup').textContent,/Sin tráfico|OSRM|OpenStreetMap/);
   assert.match(calls[0],/-56.171,-34.901;/);assert.doesNotMatch(calls[0],/9012345/);
   await a.sandbox.calcularTiempoAuto();assert.equal(calls.length,1);
 });
