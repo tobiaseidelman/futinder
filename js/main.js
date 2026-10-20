@@ -9,9 +9,7 @@ import './chat.js';
 import './notifications.js';
 import './ratings.js';
 import { iniciarAuth } from './auth.js';
-import { pedirUbicacion } from './location.js';
 
-pedirUbicacion();
 const hoy = new Date().toISOString().split('T')[0];
 const fechaInput = document.getElementById('fecha');
 if (fechaInput) fechaInput.value = hoy;
