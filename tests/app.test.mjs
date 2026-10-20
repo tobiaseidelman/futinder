@@ -196,6 +196,7 @@ test('guarda avatar sin Storage y conserva cambios pendientes si Firestore falla
 
 test('dirección: hover, permiso, distancia con coordenadas cero y errores', async () => {
   const a = await boot();
+  a.sandbox.confirm=()=>false;
   await a.auth({uid:'user-1'});
   const p = {...a.match,id:'geo',creador:'Lucas',confirmados:[],canchaLat:0,canchaLng:0};
   a.listeners.get('partidos')({docs:[{id:p.id,data:()=>p}]});
@@ -216,7 +217,7 @@ test('dirección: hover, permiso, distancia con coordenadas cero y errores', asy
 });
 
 test('ruta en auto: consentimiento, minutos, caché y origen aproximado', async () => {
-  const a=await boot(); await a.auth({uid:'user-1'});
+  const a=await boot(); a.sandbox.confirm=()=>false; await a.auth({uid:'user-1'});
   const p={...a.match,id:'ruta',creador:'Lucas',confirmados:[],canchaLat:-34.9,canchaLng:-56.15};
   a.listeners.get('partidos')({docs:[{id:p.id,data:()=>p}]});a.sandbox.render();
   a.sandbox.navigator.geolocation={getCurrentPosition(ok){ok({coords:{latitude:-34.9012345,longitude:-56.1712345}});}};
@@ -227,6 +228,8 @@ test('ruta en auto: consentimiento, minutos, caché y origen aproximado', async 
   a.sandbox.confirm=()=>false;
   await a.sandbox.calcularTiempoAuto();assert.equal(calls.length,0);
   a.sandbox.confirm=()=>true;
+  await a.auth(null);
+  await a.auth({uid:'user-1'});
   await a.sandbox.calcularTiempoAuto();
   assert.match(a.element('distPopup').textContent,/🚗 11 min · 3,4 km/);
   assert.match(a.element('distPopup').textContent,/Sin tráfico/);
@@ -239,10 +242,22 @@ test('si falla la ruta no inventa minutos', async () => {
   const p={...a.match,id:'ruta',creador:'Lucas',confirmados:[],canchaLat:0,canchaLng:0};
   a.listeners.get('partidos')({docs:[{id:p.id,data:()=>p}]});a.sandbox.render();
   a.sandbox.navigator.geolocation={getCurrentPosition(ok){ok({coords:{latitude:0,longitude:0.01}});}};
-  a.sandbox.verDistanciaDireccion();a.sandbox.AbortController=AbortController;
+  a.sandbox.AbortController=AbortController;
   a.sandbox.fetch=async()=>({ok:true,json:async()=>({code:'NoRoute'})});
+  a.sandbox.verDistanciaDireccion();
   await a.sandbox.calcularTiempoAuto();
   assert.match(a.element('distPopup').textContent,/en línea recta/);
   assert.match(a.element('distPopup').textContent,/No pudimos calcular/);
   assert.doesNotMatch(a.element('distPopup').textContent,/🚗 \d+ min/);
 });
+
+ test('pide permisos después de iniciar sesión y no muestra botón en tarjeta', async () => {
+  const a=await boot();const eventos=[];
+  a.sandbox.navigator.geolocation={getCurrentPosition(ok){eventos.push('ubicacion');ok({coords:{latitude:0,longitude:0}});}};
+  a.sandbox.confirm=mensaje=>{eventos.push('OSRM');assert.match(mensaje,/OSRM/);return false;};
+  await a.auth(null);assert.deepEqual(eventos,[]);
+  await a.auth({uid:'user-1'});assert.deepEqual(eventos,['ubicacion','OSRM']);
+  await a.auth({uid:'user-1'});assert.equal(eventos.length,2);
+  const source=await fs.readFile(path.join(root,'js/home.js'),'utf8');
+  assert.doesNotMatch(source,/class="car-time-trigger"/);
+ });
