@@ -65,7 +65,7 @@ async function pedirPermisosSesion(uid){
   state.rutasPermitidas = false;
   await pedirUbicacion();
   if(usuarioConsultado !== uid) return;
-  state.rutasPermitidas = confirm('¿Querés ver cuánto tardás en llegar a las canchas? Al aceptar, se enviará tu ubicación aproximada y la cancha a OSRM para calcular el recorrido. Los tiempos son estimados, sin tráfico en vivo.');
+  state.rutasPermitidas = confirm('¿Querés ver cuánto tardás en llegar a las canchas? Al aceptar, se enviará tu ubicación aproximada y la cancha a OSRM para calcular el recorrido. Los tiempos son estimados, sin tráfico en vivo. Rutas: OSRM / © OpenStreetMap.');
 }
 function reiniciarPermisosSesion(){
   usuarioConsultado = null;
