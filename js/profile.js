@@ -44,27 +44,134 @@ function comprimirImagen(file, maxLado = 1280, maxKB = 1000){
   });
 }
 
+
+function dialogoFoto(titulo){
+  const anterior = document.activeElement;
+  const dialog = document.createElement('dialog');
+  dialog.className = 'foto-dialog';
+  const heading = document.createElement('h2');
+  heading.textContent = titulo;
+  dialog.append(heading);
+  dialog.setAttribute('aria-label', titulo);
+  document.body.append(dialog);
+  dialog.addEventListener('close', () => { dialog.remove(); anterior?.focus?.(); });
+  dialog.addEventListener('click', e => { if(e.target === dialog) dialog.close(); });
+  return dialog;
+}
+function limitarRecorte(img, zoom, x, y){
+  const escala = Math.max(256 / img.width, 256 / img.height) * zoom;
+  const limiteX = Math.max(0, (img.width * escala - 256) / 2);
+  const limiteY = Math.max(0, (img.height * escala - 256) / 2);
+  return {escala, x:Math.max(-limiteX, Math.min(limiteX, x)), y:Math.max(-limiteY, Math.min(limiteY, y))};
+}
+function recortarFoto(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Imagen inválida')); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const dialog = dialogoFoto('Centrar foto');
+      const ayuda = document.createElement('p');
+      ayuda.textContent = 'Arrastrá la foto para centrarla. El círculo muestra cómo quedará tu perfil.';
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 256;
+      canvas.className = 'foto-recorte';
+      canvas.setAttribute('aria-label','Vista circular de la foto. Usá las flechas para moverla.');
+      canvas.tabIndex = 0;
+      const label = document.createElement('label');
+      label.textContent = 'Zoom';
+      const zoom = document.createElement('input');
+      zoom.type = 'range'; zoom.min = '1'; zoom.max = '4'; zoom.step = '0.01'; zoom.value = '1';
+      zoom.setAttribute('aria-label','Zoom de la foto');
+      label.append(zoom);
+      const acciones = document.createElement('div');
+      acciones.className = 'foto-acciones';
+      const cancelar = document.createElement('button');
+      cancelar.textContent = 'Cancelar'; cancelar.type = 'button';
+      cancelar.onclick = () => dialog.close();
+      const usar = document.createElement('button');
+      usar.textContent = 'Usar foto'; usar.type = 'button'; usar.className = 'foto-confirmar';
+      acciones.append(cancelar, usar);
+      dialog.append(ayuda, canvas, label, acciones);
+      let x = 0, y = 0, drag = null, resultado = null;
+      const pintar = () => {
+        const r = limitarRecorte(img, Number(zoom.value), x, y);
+        x = r.x; y = r.y;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#111'; ctx.fillRect(0,0,256,256);
+        ctx.drawImage(img, 128 - img.width*r.escala/2+x, 128-img.height*r.escala/2+y, img.width*r.escala,img.height*r.escala);
+      };
+      zoom.oninput = pintar;
+      canvas.onpointerdown = e => {
+        if(drag) return;
+        drag = {id:e.pointerId,x:e.clientX,y:e.clientY};
+        canvas.setPointerCapture(e.pointerId);
+      };
+      canvas.onpointermove = e => {
+        if(!drag || drag.id !== e.pointerId) return;
+        const ratio = 256 / canvas.getBoundingClientRect().width;
+        x += (e.clientX-drag.x)*ratio; y += (e.clientY-drag.y)*ratio;
+        drag.x=e.clientX; drag.y=e.clientY; pintar();
+      };
+      canvas.onpointerup = canvas.onpointercancel = canvas.onlostpointercapture = () => { drag=null; };
+      canvas.onkeydown = e => {
+        const pasos = {ArrowLeft:[-8,0],ArrowRight:[8,0],ArrowUp:[0,-8],ArrowDown:[0,8]};
+        if(!pasos[e.key]) return;
+        e.preventDefault(); x+=pasos[e.key][0]; y+=pasos[e.key][1]; pintar();
+      };
+      usar.onclick = () => {
+        usar.disabled=true;
+        canvas.toBlob(blob => {
+          if(!dialog.open) return;
+          if(!blob){ usar.disabled=false; alert('No se pudo preparar la foto. Probá de nuevo.'); return; }
+          resultado = new File([blob], 'perfil.jpg', {type:'image/jpeg'});
+          dialog.close();
+        }, 'image/jpeg', 0.9);
+      };
+      dialog.addEventListener('close', () => resolve(resultado), {once:true});
+      dialog.showModal(); pintar();
+    };
+    img.src = url;
+  });
+}
+window.ampliarFotoPerfil = src => {
+  if(typeof src !== 'string' || !/^(https?:\/\/|data:image\/)/.test(src)) return;
+  const dialog = dialogoFoto('Foto de perfil');
+  const marco = document.createElement('div'); marco.className = 'foto-visor';
+  const img = document.createElement('img'); img.src=src; img.alt='Foto de perfil ampliada';
+  marco.append(img);
+  const label = document.createElement('label'); label.textContent='Zoom';
+  const zoom = document.createElement('input');
+  zoom.type='range'; zoom.min='1'; zoom.max='3'; zoom.step='0.05'; zoom.value='1';
+  zoom.setAttribute('aria-label','Ampliar foto de perfil');
+  zoom.oninput=()=>{img.style.width=Number(zoom.value)*100+'%';};
+  label.append(zoom);
+  const cerrar = document.createElement('button'); cerrar.type='button'; cerrar.textContent='Cerrar';
+  cerrar.onclick=()=>dialog.close();
+  dialog.append(marco,label,cerrar); dialog.showModal();
+};
+
 window.previsualizarFoto = async (input, previewId) => {
-  let file = input.files[0];
-  if(!file) return;
-  if(!file.type.startsWith('image/')){ alert("Elegí un archivo de imagen"); input.value = ''; return; }
-  if(file.size > 15 * 1024 * 1024){ alert('Elegí una imagen de menos de 15 MB'); return; }
-  if(fotoProcesando) return;
+  const file = input.files[0];
+  if(!file || fotoProcesando) return;
+  if(!file.type.startsWith('image/')){ alert('Elegí un archivo de imagen'); input.value=''; return; }
+  if(file.size > 15*1024*1024){ alert('Elegí una imagen de menos de 15 MB'); input.value=''; return; }
   fotoProcesando = true;
-  fotoNuevaFile = null;
-  let preview = document.getElementById(previewId);
-  preview.innerHTML = '⏳';
-  try{
-    fotoNuevaFile = await comprimirImagen(file, 256, 24);
-    let reader = new FileReader();
-    reader.onload = (e) => { preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`; };
-    reader.readAsDataURL(fotoNuevaFile);
-  }catch(e){
-    console.error("Error comprimiendo foto:", e);
-    alert("No se pudo procesar esa imagen, probá con otra.");
-    preview.innerHTML = '👤';
-    input.value = '';
-  } finally { fotoProcesando = false; }
+  try {
+    const recorte = await recortarFoto(file);
+    if(!recorte) return;
+    const preparada = await comprimirImagen(recorte,256,24);
+    const src = await leerFotoPerfil(preparada);
+    const img = document.createElement('img');
+    img.src=src; img.alt='Vista previa de tu foto';
+    img.style.cssText='width:100%;height:100%;object-fit:cover;';
+    document.getElementById(previewId).replaceChildren(img);
+    fotoNuevaFile=preparada;
+  } catch(e) {
+    console.error('Error preparando foto:',e);
+    alert('No se pudo preparar esa imagen. Probá con otra.');
+  } finally { fotoProcesando=false; input.value=''; }
 };
 
 // Avatar pequeño: máximo 24 KiB JPEG (~32 KiB codificado), guardado en el perfil.
@@ -159,7 +266,7 @@ window.verMiPerfil = () => {
     <div class="perfil-header">
       <div class="perfil-cover">⚽</div>
       <div class="perfil-avatar-wrap">
-        ${state.perfil.foto ? `<img src="${state.perfil.foto}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="perfil-avatar">${state.perfil.nombre[0].toUpperCase()}</div>`}
+        ${state.perfil.foto ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src);}" src="${state.perfil.foto}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="perfil-avatar">${state.perfil.nombre[0].toUpperCase()}</div>`}
       </div>
     </div>
     <div class="perfil-body">
@@ -241,7 +348,7 @@ window.abrirPerfilJugador = async (uid, nombre) => {
   try {
     const snap = await getDoc(doc(db, "usuarios", uid));
     let p = snap.exists() ? snap.data() : { nombre: nombre, posicion: '', bio: 'Sin bio', zona: 'Sin zona', partidos: 0, rating: 0 };
-    let foto = p.foto ? `<img src="${p.foto}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="modal-avatar">${(p.nombre||nombre)[0].toUpperCase()}</div>`;
+    let foto = p.foto ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src);}" src="${p.foto}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="modal-avatar">${(p.nombre||nombre)[0].toUpperCase()}</div>`;
     document.getElementById("modalContent").innerHTML = `
       <div class="modal-perfil-header">
         ${foto}
