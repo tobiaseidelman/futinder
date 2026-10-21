@@ -11,7 +11,7 @@ function iniciarPartidos(){
   state.partidosUnsub = onSnapshot(q, (snap) => {
     state.partidos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if(document.getElementById("home").classList.contains("active")) render();
-    if(document.getElementById("misPartidos").classList.contains("active")) verMisPartidos();
+    if(document.getElementById("misPartidos").classList.contains("active")) renderTabPartidos();
     chequearPartidosFinalizados();
   });
 }
@@ -208,6 +208,60 @@ function estadoBadge(estado){
   return '';
 }
 
+const retirosEnCurso = new Set();
+
+function solicitudesPendientesHTML(){
+  const uid = state.usuario?.uid;
+  if(!uid || tabActual === 'finalizados') return '';
+  const pendientes = state.partidos.filter(p =>
+    (p.solicitudes || []).some(s => s.uid === uid) &&
+    !(p.confirmados || []).some(c => uidDeConfirmado(c) === uid) &&
+    getEstadoPartido(p) === 'activo'
+  );
+  if(!pendientes.length) return '';
+  return '<section aria-label="Solicitudes enviadas"><p class="section-title">Solicitudes enviadas · ' + pendientes.length + '</p>' +
+    pendientes.map(p => `<div class="partido-item" style="cursor:default;">
+      <div class="partido-item-title">${escaparJugador(p.cancha)}</div>
+      <div class="partido-item-sub">${escaparJugador(p.fecha || '')} · ${escaparJugador(p.hora || '')} · Fútbol ${escaparJugador(p.tipo)}</div>
+      <div class="partido-item-sub" style="margin-top:6px;">Esperando que el creador te acepte</div>
+      <button type="button" data-partido-id="${escaparJugador(p.id)}" onclick="retirarSolicitud(this.dataset.partidoId)" ${retirosEnCurso.has(p.id) ? 'disabled' : ''}
+        style="margin-top:12px;min-height:44px;padding:8px 14px;background:var(--surface2);border:1px solid #444;border-radius:8px;color:var(--text);font:inherit;cursor:pointer;">
+        ${retirosEnCurso.has(p.id) ? 'Retirando…' : 'Retirar solicitud'}
+      </button>
+    </div>`).join('') + '</section><p class="section-title">' + (tabActual === 'creados' ? 'Partidos creados' : 'Partidos confirmados') + '</p>';
+}
+
+window.retirarSolicitud = async partidoId => {
+  const uid = state.usuario?.uid;
+  if(!uid || retirosEnCurso.has(partidoId)) return;
+  if(!confirm('¿Retirar tu solicitud para este partido?')) return;
+  retirosEnCurso.add(partidoId);
+  renderTabPartidos();
+  try {
+    await runTransaction(db, async tx => {
+      const refPartido = doc(db, 'partidos', partidoId);
+      const snap = await tx.get(refPartido);
+      if(!snap.exists()) return;
+      const p = snap.data();
+      if((p.confirmados || []).some(c => uidDeConfirmado(c) === uid)){
+        throw new Error('Ya te aceptaron. Podés ver el partido en Confirmados y usar la opción Bajarme del partido.');
+      }
+      const solicitudes = p.solicitudes || [];
+      if(!solicitudes.some(s => s.uid === uid)) return;
+      tx.update(refPartido, {solicitudes: solicitudes.filter(s => s.uid !== uid)});
+    });
+    if(state.usuario?.uid === uid){
+      const p = state.partidos.find(p => p.id === partidoId);
+      if(p) p.solicitudes = (p.solicitudes || []).filter(s => s.uid !== uid);
+    }
+  } catch(e) {
+    alert(e.message || 'No se pudo retirar la solicitud. Intentá de nuevo.');
+  } finally {
+    retirosEnCurso.delete(partidoId);
+    if(state.usuario?.uid === uid) renderTabPartidos();
+  }
+};
+
 function renderTabPartidos(){
   let html = '';
   if(tabActual === 'creados'){
@@ -267,7 +321,7 @@ function renderTabPartidos(){
       </div>`;
     });
   }
-  document.getElementById("listaPartidos").innerHTML = html;
+  document.getElementById("listaPartidos").innerHTML = solicitudesPendientesHTML() + html;
 }
 
 window.eliminarDeConfirmados = async (partidoId) => {
