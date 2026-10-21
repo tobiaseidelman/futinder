@@ -128,6 +128,16 @@ function escaparJugador(valor){
 function avatarJugadorHTML(uid, nombre){
   return '<div class="mini-avatar" data-jugador-uid="'+escaparJugador(uid || '')+'" data-jugador-nombre="'+escaparJugador(nombre)+'">'+escaparJugador((nombre || '?')[0].toUpperCase())+'</div>';
 }
+function posicionCompleta(posicion){
+  return ({DC:'Delantero centro',MCD:'Mediocampista defensivo',MC:'Mediocampista central',LB:'Lateral izquierdo',CB:'Defensa central',ARQ:'Arquero',EXT:'Extremo',VOL:'Volante'})[posicion] || posicion || 'Sin posición';
+}
+function reputacionSolicitud(datos){
+  const total = Number(datos.calificacionesRecibidas);
+  const rating = Number(datos.rating);
+  if(!Number.isInteger(total) || total <= 0 || !Number.isFinite(rating) || rating < 1 || rating > 5) return 'Sin opiniones';
+  return '★ ' + rating.toLocaleString('es-UY',{minimumFractionDigits:1,maximumFractionDigits:1}) + ' · ' + total + (total === 1 ? ' opinión' : ' opiniones');
+}
+
 async function cargarAvataresJugadores(contenedor){
   if(!contenedor) return;
   const pendientes = new Map();
@@ -136,8 +146,18 @@ async function cargarAvataresJugadores(contenedor){
     if(!uid) continue;
     if(!pendientes.has(uid)) pendientes.set(uid, getDoc(doc(db,'usuarios',uid)).catch(()=>null));
     void pendientes.get(uid).then(snap => {
-      if(!avatar.isConnected || !snap?.exists()) return;
-      const foto = snap.data().foto;
+      if(!avatar.isConnected) return;
+      const fila = avatar.closest('.solicitud-header');
+      const reputacion = fila?.querySelector('[data-reputacion]');
+      if(!snap?.exists()){
+        if(reputacion) reputacion.textContent = 'Reputación no disponible';
+        return;
+      }
+      const datos = snap.data();
+      if(reputacion) reputacion.textContent = reputacionSolicitud(datos);
+      const posicion = fila?.querySelector('[data-posicion]');
+      if(posicion) posicion.textContent = posicionCompleta(datos.posicion);
+      const foto = datos.foto;
       if(typeof foto !== 'string' || !/^(https?:\/\/|data:image\/jpeg;base64,)/.test(foto)) return;
       const img = document.createElement('img');
       img.alt = 'Foto de ' + (avatar.dataset.jugadorNombre || 'jugador');
@@ -275,6 +295,10 @@ window.verDetalle = (i) => {
   let p = state.partidos[i];
   document.getElementById("creadorTitle").textContent = p.cancha;
   let estadoCreador = getEstadoPartido(p);
+  const tituloConfirmados = document.getElementById('tituloConfirmados');
+  const tituloSolicitudes = document.getElementById('tituloSolicitudes');
+  if(tituloConfirmados) tituloConfirmados.textContent = 'Confirmados · ' + (p.confirmados||[]).length + '/' + p.max;
+  if(tituloSolicitudes) tituloSolicitudes.textContent = 'Solicitudes · ' + (p.solicitudes||[]).length;
   let htmlConf = (p.confirmados||[]).length === 0
     ? `<div style="padding:0 20px;color:var(--text-muted);font-size:14px;">Nadie confirmado todavía</div>`
     : (p.confirmados||[]).map(c => getConfirmadoItemHTML(c, p, estadoCreador)).join('');
@@ -289,7 +313,7 @@ window.verDetalle = (i) => {
           ${avatarJugadorHTML(s.uid, s.nombre)}
           <div style="flex:1;">
             <div style="font-weight:600;">${s.nombre}</div>
-            <div style="font-size:13px;color:var(--text-muted);"><span class="stars">★★★★★</span> · ${s.posicion||'Sin posición'}</div>
+            <div class="solicitud-meta"><span data-reputacion>${s.uid ? 'Cargando reputación…' : 'Reputación no disponible'}</span><span data-posicion>${escaparJugador(posicionCompleta(s.posicion))}</span></div>
           </div>
           <span style="color:var(--text-muted)">›</span>
         </div>
