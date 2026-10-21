@@ -372,3 +372,9 @@
 .cancelar-partido-discreto{align-self:center;min-height:44px;padding:10px 16px;background:transparent;border:0;border-radius:8px;color:var(--red);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer}
 .cancelar-partido-discreto:hover{background:rgba(255,60,60,.06)}
 .cancelar-partido-discreto:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+/* Pestañas de Mis partidos: desplazamiento horizontal en celular. */
+#misPartidos .tabs { overflow-x:auto; flex-shrink:0; scrollbar-width:thin; scrollbar-color:#444 transparent; }
+#misPartidos .tab-btn { flex:1 0 auto; min-height:44px; white-space:nowrap; }
+.pendientes-count { display:inline-block; min-width:18px; margin-left:3px; padding:1px 4px; border-radius:10px; background:var(--green); color:#000; font-size:11px; }
+.pendientes-count[hidden] { display:none; }
