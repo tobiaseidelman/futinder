@@ -378,3 +378,15 @@
 #misPartidos .tab-btn { flex:1 0 auto; min-height:44px; white-space:nowrap; }
 .pendientes-count { display:inline-block; min-width:18px; margin-left:3px; padding:1px 4px; border-radius:10px; background:var(--green); color:#000; font-size:11px; }
 .pendientes-count[hidden] { display:none; }
+
+/* Portada personal opcional, independiente del avatar. */
+.perfil-header.sin-portada { height:100px; }
+.perfil-header.con-portada { height:200px; }
+.perfil-cover { background:#111; font-size:inherit; }
+.perfil-cover img,.modal-portada img,.portada-preview-img img { display:block;width:100%;height:100%;object-fit:cover; }
+.modal-portada { width:100%;aspect-ratio:2.1;overflow:hidden;border-radius:12px;margin-bottom:16px;background:#111; }
+.portada-preview { aspect-ratio:2.1;background:#111;border:1px solid #333;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px; }
+.portada-preview-img { width:100%;height:100%; }
+.portada-actions { display:flex;gap:8px;margin-top:10px;align-items:center; }
+.portada-actions .submit-btn { flex:1; }
+.portada-actions button { min-height:44px; }
