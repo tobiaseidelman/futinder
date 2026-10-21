@@ -141,21 +141,38 @@ window.prepararFotoAmpliable = img => {
   img.setAttribute('role','button');
   img.setAttribute('tabindex','0');
   img.setAttribute('aria-label','Ampliar foto de perfil');
-  img.onclick = e => { e.preventDefault(); e.stopPropagation(); ampliarFotoPerfil(img.src); };
+  img.onclick = e => { e.preventDefault(); e.stopPropagation(); ampliarFotoPerfil(img.src, img); };
   img.onkeydown = e => {
-    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); e.stopPropagation(); ampliarFotoPerfil(img.src); }
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); e.stopPropagation(); ampliarFotoPerfil(img.src, img); }
   };
 };
 
-window.ampliarFotoPerfil = src => {
+window.ampliarFotoPerfil = (src, origen) => {
   if(typeof src !== 'string' || !/^(https?:\/\/|data:image\/)/.test(src)) return;
-  const dialog = dialogoFoto('Foto de perfil');
-  const marco = document.createElement('div'); marco.className = 'foto-visor';
-  const img = document.createElement('img'); img.src=src; img.alt='Foto de perfil ampliada';
-  marco.append(img);
-  const cerrar = document.createElement('button'); cerrar.type='button'; cerrar.textContent='Cerrar';
-  cerrar.onclick=()=>dialog.close();
-  dialog.append(marco,cerrar); dialog.showModal();
+  const anterior = document.activeElement;
+  const dialog = document.createElement('dialog');
+  dialog.className = 'foto-circulo-dialog';
+  dialog.setAttribute('aria-label','Foto de perfil ampliada. Tocá para cerrar.');
+  const img = document.createElement('img');
+  img.src = src; img.alt = 'Foto de perfil ampliada'; img.draggable = false;
+  dialog.append(img);
+  const overflowAnterior = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  document.body.append(dialog);
+  dialog.addEventListener('close', () => {
+    document.body.style.overflow = overflowAnterior;
+    dialog.remove(); anterior?.focus?.();
+  }, {once:true});
+  dialog.addEventListener('click', () => dialog.close());
+  dialog.showModal();
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    const destino = dialog.getBoundingClientRect();
+    const inicio = origen?.getBoundingClientRect();
+    const transform = inicio
+      ? 'translate(' + (inicio.left+inicio.width/2-destino.left-destino.width/2) + 'px,' + (inicio.top+inicio.height/2-destino.top-destino.height/2) + 'px) scale(' + inicio.width/destino.width + ')'
+      : 'scale(0.8)';
+    dialog.animate([{transform,opacity:0.3},{transform:'translate(0,0) scale(1)',opacity:1}],{duration:240,easing:'cubic-bezier(.2,.8,.2,1)'});
+  }
 };
 
 window.previsualizarFoto = async (input, previewId) => {
@@ -272,7 +289,7 @@ window.verMiPerfil = () => {
     <div class="perfil-header">
       <div class="perfil-cover">⚽</div>
       <div class="perfil-avatar-wrap">
-        ${state.perfil.foto ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src);}" src="${state.perfil.foto}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="perfil-avatar">${state.perfil.nombre[0].toUpperCase()}</div>`}
+        ${state.perfil.foto ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src, this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src, this);}" src="${state.perfil.foto}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="perfil-avatar">${state.perfil.nombre[0].toUpperCase()}</div>`}
       </div>
     </div>
     <div class="perfil-body">
@@ -354,7 +371,7 @@ window.abrirPerfilJugador = async (uid, nombre) => {
   try {
     const snap = await getDoc(doc(db, "usuarios", uid));
     let p = snap.exists() ? snap.data() : { nombre: nombre, posicion: '', bio: 'Sin bio', zona: 'Sin zona', partidos: 0, rating: 0 };
-    let foto = p.foto ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src);}" src="${p.foto}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="modal-avatar">${(p.nombre||nombre)[0].toUpperCase()}</div>`;
+    let foto = p.foto ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src, this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src, this);}" src="${p.foto}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="modal-avatar">${(p.nombre||nombre)[0].toUpperCase()}</div>`;
     document.getElementById("modalContent").innerHTML = `
       <div class="modal-perfil-header">
         ${foto}
