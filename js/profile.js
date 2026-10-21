@@ -153,15 +153,9 @@ window.ampliarFotoPerfil = src => {
   const marco = document.createElement('div'); marco.className = 'foto-visor';
   const img = document.createElement('img'); img.src=src; img.alt='Foto de perfil ampliada';
   marco.append(img);
-  const label = document.createElement('label'); label.textContent='Zoom';
-  const zoom = document.createElement('input');
-  zoom.type='range'; zoom.min='1'; zoom.max='3'; zoom.step='0.05'; zoom.value='1';
-  zoom.setAttribute('aria-label','Ampliar foto de perfil');
-  zoom.oninput=()=>{img.style.width=Number(zoom.value)*100+'%';};
-  label.append(zoom);
   const cerrar = document.createElement('button'); cerrar.type='button'; cerrar.textContent='Cerrar';
   cerrar.onclick=()=>dialog.close();
-  dialog.append(marco,label,cerrar); dialog.showModal();
+  dialog.append(marco,cerrar); dialog.showModal();
 };
 
 window.previsualizarFoto = async (input, previewId) => {
