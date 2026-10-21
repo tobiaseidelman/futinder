@@ -61,7 +61,7 @@ window.selTag = (id) => {
   if(tagsSeleccionados.includes(id)){
     tagsSeleccionados = tagsSeleccionados.filter(t => t !== id);
   } else {
-    if(tagsSeleccionados.length >= 3){ alert("Máximo 3 tags"); return; }
+    if(tagsSeleccionados.length >= 3){ window.mostrarAviso("Máximo 3 tags"); return; }
     tagsSeleccionados.push(id);
   }
   renderModalRating();
@@ -69,7 +69,7 @@ window.selTag = (id) => {
 
 window.enviarRating = async () => {
   if(enviandoRating) return;
-  if(!Number.isInteger(ratingActual) || ratingActual < 1 || ratingActual > 5){ alert("Elegí al menos una estrella"); return; }
+  if(!Number.isInteger(ratingActual) || ratingActual < 1 || ratingActual > 5){ window.mostrarAviso("Elegí al menos una estrella"); return; }
   if(!state.usuario || !state.perfil) return;
   const {nombre, partidoId} = ratingTarget;
   const autorUid = state.usuario.uid;
@@ -80,8 +80,8 @@ window.enviarRating = async () => {
   if(!local) return;
   const jugador = (local.confirmados||[]).find(c => nombreDeConfirmado(c) === nombre);
   const targetUid = (jugador ? uidDeConfirmado(jugador) : null) || (nombre === local.creador ? local.creadorUid : null);
-  if(!targetUid){ alert('No se pudo identificar al jugador.'); return; }
-  if(targetUid === autorUid){ alert('No podés calificarte a vos mismo.'); return; }
+  if(!targetUid){ window.mostrarAviso('No se pudo identificar al jugador.', 'error'); return; }
+  if(targetUid === autorUid){ window.mostrarAviso('No podés calificarte a vos mismo.'); return; }
   enviandoRating = true;
   const boton = document.getElementById('enviarRatingBtn');
   if(boton){ boton.disabled = true; boton.textContent = 'Guardando…'; }
@@ -122,10 +122,10 @@ window.enviarRating = async () => {
     if(i >= 0){
       if(local.creadorUid === autorUid) verDetalle(i); else verInfoPartido(i);
     }
-    alert(resultado.duplicada ? 'Ya calificaste a este jugador en este partido.' : '¡Calificación enviada! ✅');
+    window.mostrarAviso(resultado.duplicada ? 'Ya calificaste a este jugador en este partido.' : 'Calificación enviada', resultado.duplicada ? 'info' : 'success');
   } catch(e) {
     console.error('Error al calificar:',e);
-    alert(e.message || 'No se pudo guardar la calificación. Probá de nuevo.');
+    window.mostrarAviso(e.message || 'No se pudo guardar la calificación. Probá de nuevo.', 'error');
   } finally {
     enviandoRating = false;
     if(boton){ boton.disabled = false; boton.textContent = 'ENVIAR CALIFICACIÓN'; }
