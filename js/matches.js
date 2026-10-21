@@ -1,6 +1,6 @@
 import './navigation.js';
 import { state } from './state.js';
-import { getDoc, query, collection, db, orderBy, onSnapshot, updateDoc, doc, addDoc, serverTimestamp, increment, arrayUnion, deleteDoc } from './firebase.js';
+import { runTransaction, getDoc, query, collection, db, orderBy, onSnapshot, updateDoc, doc, addDoc, serverTimestamp, increment, arrayUnion, deleteDoc } from './firebase.js';
 import { pedirUbicacion } from './location.js';
 import { esAdmin } from './admin.js';
 
@@ -330,26 +330,59 @@ window.verDetalle = (i) => {
   cambiarPantalla("creador");
 };
 
+const aceptacionesEnCurso = new Set();
 window.aceptar = async (i) => {
-  let p = state.partidos[state.idx];
-  let jugador = p.solicitudes[i];
-  let nuevasConf = [...(p.confirmados||[]), {nombre: jugador.nombre, uid: jugador.uid}];
-  let nuevasSol = [...p.solicitudes];
-  nuevasSol.splice(i, 1);
-  await updateDoc(doc(db,"partidos",p.id), {
-    confirmados: nuevasConf,
-    solicitudes: nuevasSol,
-    jugadores: p.jugadores + 1
-  });
-  // Notificación al jugador aceptado
-  await addDoc(collection(db, "usuarios", jugador.uid, "notificaciones"), {
-    tipo: "aceptado",
-    texto: `¡Te aceptaron en ${p.cancha}! Podés entrar al chat.`,
-    partidoId: p.id,
-    visto: false,
-    creadoEn: serverTimestamp()
-  });
-  verDetalle(state.idx);
+  const partido = state.partidos[state.idx];
+  const solicitud = partido?.solicitudes?.[i];
+  if(!partido || !solicitud?.uid || aceptacionesEnCurso.has(partido.id)) return;
+  const partidoId = partido.id;
+  const jugadorUid = solicitud.uid;
+  aceptacionesEnCurso.add(partidoId);
+  try {
+    const resultado = await runTransaction(db, async tx => {
+      const partidoRef = doc(db, "partidos", partidoId);
+      const snap = await tx.get(partidoRef);
+      if(!snap.exists()) throw new Error("Este partido ya no está disponible.");
+      const actual = snap.data();
+      const confirmados = actual.confirmados || [];
+      if(confirmados.some(c => uidDeConfirmado(c) === jugadorUid || (typeof c === 'string' && c === solicitud.nombre))){
+        throw new Error("Este jugador ya está confirmado.");
+      }
+      const jugador = (actual.solicitudes || []).find(s => s.uid === jugadorUid);
+      if(!jugador) throw new Error("Esta solicitud ya no está pendiente.");
+      const jugadores = Number(actual.jugadores);
+      const max = Number(actual.max);
+      if(!Number.isInteger(jugadores) || jugadores < 0 || !Number.isInteger(max) || max <= 0){
+        throw new Error("No se pudo verificar el cupo del partido.");
+      }
+      if(jugadores >= max) throw new Error("El partido ya está completo. No podés aceptar más jugadores.");
+      const cambios = {
+        confirmados: [...confirmados, {nombre: jugador.nombre, uid: jugador.uid}],
+        solicitudes: actual.solicitudes.filter(s => s.uid !== jugadorUid),
+        jugadores: jugadores + 1
+      };
+      tx.update(partidoRef, cambios);
+      return { ...actual, ...cambios, id: partidoId };
+    });
+    const indice = state.partidos.findIndex(p => p.id === partidoId);
+    if(indice !== -1) state.partidos[indice] = resultado;
+    if(state.partidos[state.idx]?.id === partidoId) verDetalle(state.idx);
+    try {
+      await addDoc(collection(db, "usuarios", jugadorUid, "notificaciones"), {
+        tipo: "aceptado",
+        texto: `¡Te aceptaron en ${resultado.cancha}! Podés entrar al chat.`,
+        partidoId,
+        visto: false,
+        creadoEn: serverTimestamp()
+      });
+    } catch(e) {
+      alert("Jugador aceptado, pero no se pudo enviar la notificación.");
+    }
+  } catch(e) {
+    alert(e.message || "No se pudo aceptar al jugador. Intentá de nuevo.");
+  } finally {
+    aceptacionesEnCurso.delete(partidoId);
+  }
 };
 
 window.rechazar = async (i) => {
