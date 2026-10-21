@@ -177,7 +177,8 @@ function getConfirmadoItemHTML(c, p, estado){
   let nombre = nombreDeConfirmado(c);
   let esYo = nombre === state.perfil.nombre;
   let esCreador = nombre === p.creador;
-  let yaCalifique = ((p.calificaciones||{})[state.perfil.nombre]||[]).includes(nombre);
+  const jugadorUid = uidDeConfirmado(c) || (esCreador ? p.creadorUid : null);
+  let yaCalifique = ((p.calificacionesPorUid||{})[encodeURIComponent(state.usuario.uid)]||[]).includes(jugadorUid) || ((p.calificaciones||{})[state.perfil.nombre]||[]).includes(nombre);
   let accion = '';
   if(estado === 'finalizado' && !esYo){
     accion = yaCalifique
