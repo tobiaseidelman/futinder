@@ -5,6 +5,27 @@ import { nombreDeConfirmado } from './matches.js';
 import { partidoPasaFiltros, filtros } from './filters.js';
 import { calcularDistancia } from './location.js';
 
+let solicitudAbiertaId = null;
+window.limpiarTarjetaPendiente = () => { solicitudAbiertaId = null; };
+window.volverAPendientes = () => {
+  solicitudAbiertaId = null;
+  window.verMisPartidos();
+  window.switchTab('pendientes');
+};
+window.abrirSolicitudPendiente = partidoId => {
+  solicitudAbiertaId = partidoId;
+  window.cambiarPantalla('home');
+  window.render();
+};
+window.cancelarSolicitudTarjeta = async boton => {
+  const id = solicitudAbiertaId;
+  if(!id) return;
+  boton.disabled = true;
+  boton.textContent = 'Cancelando…';
+  const cancelada = await window.retirarSolicitud(id);
+  if(cancelada && solicitudAbiertaId === id) window.volverAPendientes();
+  else if(solicitudAbiertaId === id) window.render();
+};
 let canchaDistActual = null;
 let ubicacionPendiente = false;
 let ultimaConsultaRuta = 0;
@@ -152,6 +173,16 @@ async function cargarCreadorTarjeta(p){
 window.render = () => {
   actualizarBadge();
   const card = document.getElementById("card");
+  const pendiente = solicitudAbiertaId !== null;
+  const hint = document.querySelector('#home .swipe-hint');
+  if(hint) hint.hidden = pendiente;
+  if(hint) hint.style.display = pendiente ? 'none' : '';
+  let solicitud = pendiente ? state.partidos.find(p => p.id === solicitudAbiertaId) : null;
+  if(pendiente && (!solicitud || !(solicitud.solicitudes || []).some(s => s.uid === state.usuario?.uid) ||
+      (solicitud.confirmados || []).some(c => c.uid === state.usuario?.uid))){
+    window.volverAPendientes();
+    return;
+  }
   if(state.partidos.length === 0){
     card.innerHTML = `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No hay partidos disponibles.<br>¡Creá el primero!</div></div>`;
     return;
@@ -167,15 +198,15 @@ window.render = () => {
     if(!partidoPasaFiltros(p)) return false;
     return true;
   });
-  if(partidosFiltrados.length === 0){
+  if(!pendiente && partidosFiltrados.length === 0){
     let hayFiltrosActivos = filtros.tipo || filtros.zona || filtros.distancia || filtros.precio || filtros.fecha || filtros.horaDesde;
     card.innerHTML = hayFiltrosActivos
       ? `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">No hay partidos que cumplan tus filtros.<br><span onclick="resetFiltros()" style="color:var(--green);text-decoration:underline;cursor:pointer;">Limpiar filtros</span></div></div>`
       : `<div class="empty"><div class="empty-icon">⚽</div><div class="empty-text">No hay partidos disponibles.<br>¡Creá el primero!</div></div>`;
     return;
   }
-  if(state.idx >= partidosFiltrados.length) state.idx = 0;
-  let p = partidosFiltrados[state.idx];
+  if(!pendiente && state.idx >= partidosFiltrados.length) state.idx = 0;
+  let p = pendiente ? solicitud : partidosFiltrados[state.idx];
   let fill = Math.round((p.jugadores / p.max) * 100);
   let esCreador = state.perfil && p.creador === state.perfil.nombre;
   let confirmado = state.perfil && p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === state.perfil.nombre);
@@ -183,6 +214,7 @@ window.render = () => {
   const faltan = Math.max(0, p.max - p.jugadores);
   const tieneUbicacion = [state.userLat, state.userLng, p.canchaLat, p.canchaLng].every(v => typeof v === 'number' && Number.isFinite(v));
   card.innerHTML = `
+    ${pendiente ? '<button class="back-btn" style="width:auto;margin-bottom:10px;font-size:14px;" onclick="volverAPendientes()">← Volver a pendientes</button>' : ''}
     <div class="partido-card" style="position:relative;">
       <div class="swipe-overlay yes">QUIERO ✅</div>
       <div class="swipe-overlay no">❌ PASO</div>
@@ -218,13 +250,14 @@ window.render = () => {
           <span style="color:var(--text-muted)">›</span>
         </div>
         <div class="card-actions">
-          <button class="action-btn btn-no" onclick="next()">❌ Paso</button>
-          <button class="action-btn btn-yes" onclick="match()">✅ Quiero</button>
+${pendiente
+            ? '<button class="action-btn btn-no" style="width:100%;font-size:16px;" onclick="cancelarSolicitudTarjeta(this)">Cancelar solicitud</button>'
+            : '<button class="action-btn btn-no" onclick="next()">❌ Paso</button><button class="action-btn btn-yes" onclick="match()">✅ Quiero</button>'}
         </div>
         ${(esCreador||confirmado)?`<button onclick="abrirChatIdx(${state.idx})" style="width:100%;margin-top:10px;padding:12px;background:var(--surface2);border:1px solid #333;border-radius:var(--radius-sm);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;">💬 Ir al chat</button>`:''}
       </div>
     </div>`;
-  initSwipe();
+  if(!pendiente) initSwipe();
   cargarCreadorTarjeta(p);
 };
 
