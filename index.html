@@ -194,6 +194,20 @@
         </label>
       </div>
     </div>
+    <div class="form-group">
+      <label class="form-label">Portada · opcional</label>
+      <div id="previewPortadaEdit" class="portada-preview"><span>Sin portada</span></div>
+      <div class="portada-actions">
+        <label class="submit-btn" style="margin:0;cursor:pointer;text-align:center;">Elegir portada
+          <input type="file" accept="image/*" style="display:none;" onchange="previsualizarPortada(this)">
+        </label>
+        <button type="button" id="quitarPortadaBtn" class="tipo-btn" onclick="quitarPortada()" hidden>Quitar</button>
+      </div>
+      <div id="posicionPortadaGroup" hidden>
+        <label for="portadaYInput" class="form-label" style="margin-top:12px;">Centrar portada</label>
+        <input id="portadaYInput" type="range" min="0" max="100" value="50" oninput="centrarPortada(this.value)" style="width:100%;accent-color:var(--green);">
+      </div>
+    </div>
     <div class="form-group"><label class="form-label">Nombre</label><input class="form-input" id="editNombre"></div>
     <div class="form-group">
       <label class="form-label">Posición</label>
