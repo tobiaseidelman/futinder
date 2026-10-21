@@ -163,15 +163,35 @@ window.ampliarFotoPerfil = (src, origen) => {
     document.body.style.overflow = overflowAnterior;
     dialog.remove(); anterior?.focus?.();
   }, {once:true});
-  dialog.addEventListener('click', () => dialog.close());
+  let cerrando = false;
+  let animacion = null;
+  let transformOrigen = 'scale(0.8)';
+  const reducirMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const cerrar = async () => {
+    if(cerrando || !dialog.open) return;
+    cerrando = true;
+    if(!reducirMovimiento){
+      // Esperar la apertura evita saltos si se toca de nuevo enseguida.
+      try { await animacion?.finished; } catch(e) {}
+      animacion = dialog.animate([
+        {transform:'translate(0,0) scale(1)',opacity:1},
+        {transform:transformOrigen,opacity:0.3}
+      ],{duration:240,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
+      try { await animacion.finished; } catch(e) {}
+    }
+    dialog.close();
+  };
+  dialog.addEventListener('click', cerrar);
+  dialog.addEventListener('cancel', e => { e.preventDefault(); void cerrar(); });
   dialog.showModal();
-  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+  if(!reducirMovimiento){
     const destino = dialog.getBoundingClientRect();
     const inicio = origen?.getBoundingClientRect();
     const transform = inicio
       ? 'translate(' + (inicio.left+inicio.width/2-destino.left-destino.width/2) + 'px,' + (inicio.top+inicio.height/2-destino.top-destino.height/2) + 'px) scale(' + inicio.width/destino.width + ')'
       : 'scale(0.8)';
-    dialog.animate([{transform,opacity:0.3},{transform:'translate(0,0) scale(1)',opacity:1}],{duration:240,easing:'cubic-bezier(.2,.8,.2,1)'});
+    transformOrigen = transform;
+    animacion = dialog.animate([{transform,opacity:0.3},{transform:'translate(0,0) scale(1)',opacity:1}],{duration:240,easing:'cubic-bezier(.2,.8,.2,1)'});
   }
 };
 
