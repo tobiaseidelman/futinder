@@ -112,7 +112,27 @@ async function cargarCreadorTarjeta(p){
     const datos = snap.data();
     const total = Number(datos.calificacionesRecibidas) || 0;
     const rating = Number(datos.rating);
-    target.textContent = total > 0 && Number.isFinite(rating) ? `★ ${rating.toFixed(1)} (${total})` : 'Sin opiniones';
+    const tieneOpiniones = total > 0 && Number.isFinite(rating) && rating >= 1 && rating <= 5;
+    const puntuacion = tieneOpiniones ? rating : 0;
+    const estrellas = document.createElement('span');
+    estrellas.setAttribute('aria-hidden', 'true');
+    estrellas.style.cssText = 'display:inline-flex;gap:2px;vertical-align:baseline;margin-right:6px';
+    for(let i = 0; i < 5; i++){
+      const estrella = document.createElement('span');
+      const relleno = Math.round(Math.max(0, Math.min(1, puntuacion - i)) * 100);
+      estrella.textContent = '★';
+      estrella.style.cssText = 'color:#555;position:relative;display:inline-block';
+      const color = document.createElement('span');
+      color.textContent = '★';
+      color.style.cssText = 'position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:var(--green);width:' + relleno + '%';
+      estrella.append(color);
+      estrellas.append(estrella);
+    }
+    const detalle = tieneOpiniones
+      ? puntuacion.toLocaleString('es-UY', {minimumFractionDigits:1, maximumFractionDigits:1}) + ' (' + total + ')'
+      : 'Sin opiniones';
+    target.setAttribute('aria-label', tieneOpiniones ? detalle + ' · puntuación sobre 5' : 'Sin opiniones');
+    target.replaceChildren(estrellas, document.createTextNode(detalle));
     const avatar = document.getElementById('cardCreatorAvatar');
     if(avatar && typeof datos.foto === 'string' && (/^https?:\/\//.test(datos.foto) || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(datos.foto))){
       const img = document.createElement('img');
