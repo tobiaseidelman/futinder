@@ -1,6 +1,6 @@
 import './navigation.js';
 import { state } from './state.js';
-import { query, collection, db, orderBy, onSnapshot, updateDoc, doc, addDoc, serverTimestamp, increment, arrayUnion, deleteDoc } from './firebase.js';
+import { getDoc, query, collection, db, orderBy, onSnapshot, updateDoc, doc, addDoc, serverTimestamp, increment, arrayUnion, deleteDoc } from './firebase.js';
 import { pedirUbicacion } from './location.js';
 import { esAdmin } from './admin.js';
 
@@ -121,6 +121,38 @@ window.switchTab = (tab) => {
 function nombreDeConfirmado(c){ return typeof c === 'string' ? c : c.nombre; }
 function uidDeConfirmado(c){ return typeof c === 'string' ? null : c.uid; }
 
+
+function escaparJugador(valor){
+  return String(valor ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function avatarJugadorHTML(uid, nombre){
+  return '<div class="mini-avatar" data-jugador-uid="'+escaparJugador(uid || '')+'" data-jugador-nombre="'+escaparJugador(nombre)+'">'+escaparJugador((nombre || '?')[0].toUpperCase())+'</div>';
+}
+async function cargarAvataresJugadores(contenedor){
+  if(!contenedor) return;
+  const pendientes = new Map();
+  for(const avatar of contenedor.querySelectorAll('[data-jugador-uid]')){
+    const uid = avatar.dataset.jugadorUid;
+    if(!uid) continue;
+    if(!pendientes.has(uid)) pendientes.set(uid, getDoc(doc(db,'usuarios',uid)).catch(()=>null));
+    void pendientes.get(uid).then(snap => {
+      if(!avatar.isConnected || !snap?.exists()) return;
+      const foto = snap.data().foto;
+      if(typeof foto !== 'string' || !/^(https?:\/\/|data:image\/jpeg;base64,)/.test(foto)) return;
+      const img = document.createElement('img');
+      img.alt = 'Foto de ' + (avatar.dataset.jugadorNombre || 'jugador');
+      img.onerror = () => { avatar.textContent = (avatar.dataset.jugadorNombre || '?')[0].toUpperCase(); };
+      window.prepararFotoAmpliable(img);
+      img.src = foto;
+      avatar.replaceChildren(img);
+    });
+  }
+}
+window.abrirPerfilSolicitud = elemento => {
+  const uid = elemento.dataset.uid;
+  if(uid) abrirPerfilJugador(uid, elemento.dataset.nombre);
+};
+
 function getConfirmadoItemHTML(c, p, estado){
   let nombre = nombreDeConfirmado(c);
   let esYo = nombre === state.perfil.nombre;
@@ -134,7 +166,7 @@ function getConfirmadoItemHTML(c, p, estado){
   }
   return `<div class="confirmado-item" style="justify-content:space-between;">
     <div style="display:flex;align-items:center;gap:12px;">
-      <div class="mini-avatar">${nombre[0].toUpperCase()}</div>
+      ${avatarJugadorHTML(uidDeConfirmado(c) || (esCreador ? p.creadorUid : null), nombre)}
       <div>${nombre}${esCreador?` <span style="background:#003300;color:var(--green);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:4px;">👨‍🔧 Creador</span>`:''}</div>
     </div>
     ${accion}
@@ -253,8 +285,8 @@ window.verDetalle = (i) => {
     ? `<div style="padding:0 20px;color:var(--text-muted);font-size:14px;">Sin solicitudes</div>`
     : (p.solicitudes||[]).map((s,si) => `
       <div class="solicitud-card">
-        <div class="solicitud-header" onclick="abrirPerfilJugador('${s.nombre}')">
-          <div class="mini-avatar">${s.nombre[0].toUpperCase()}</div>
+        <div class="solicitud-header" data-uid="${escaparJugador(s.uid || '')}" data-nombre="${escaparJugador(s.nombre)}" onclick="abrirPerfilSolicitud(this)">
+          ${avatarJugadorHTML(s.uid, s.nombre)}
           <div style="flex:1;">
             <div style="font-weight:600;">${s.nombre}</div>
             <div style="font-size:13px;color:var(--text-muted);"><span class="stars">★★★★★</span> · ${s.posicion||'Sin posición'}</div>
@@ -268,6 +300,8 @@ window.verDetalle = (i) => {
       </div>`).join('');
   document.getElementById("listaSolicitudes").innerHTML = htmlSol;
 
+  void cargarAvataresJugadores(document.getElementById("listaConfirmados"));
+  void cargarAvataresJugadores(document.getElementById("listaSolicitudes"));
   cambiarPantalla("creador");
 };
 
@@ -420,6 +454,7 @@ window.verInfoPartido = (i) => {
       ${getBajarseBtnHTML(p, i)}
     </div>`;
 
+  void cargarAvataresJugadores(document.getElementById("infoPartidoContent"));
   cambiarPantalla("infoPartido");
 };
 
