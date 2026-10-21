@@ -135,6 +135,18 @@ function recortarFoto(file){
     img.src = url;
   });
 }
+
+window.prepararFotoAmpliable = img => {
+  img.classList.add('foto-ampliable');
+  img.setAttribute('role','button');
+  img.setAttribute('tabindex','0');
+  img.setAttribute('aria-label','Ampliar foto de perfil');
+  img.onclick = e => { e.preventDefault(); e.stopPropagation(); ampliarFotoPerfil(img.src); };
+  img.onkeydown = e => {
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); e.stopPropagation(); ampliarFotoPerfil(img.src); }
+  };
+};
+
 window.ampliarFotoPerfil = src => {
   if(typeof src !== 'string' || !/^(https?:\/\/|data:image\/)/.test(src)) return;
   const dialog = dialogoFoto('Foto de perfil');
