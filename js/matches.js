@@ -71,12 +71,12 @@ window.selPos = (btn, p) => { state.posSel=p; btn.parentElement.querySelectorAll
 window.selPosEdit = (btn, p) => { state.posEditSel=p; btn.parentElement.querySelectorAll(".tipo-btn").forEach(b=>b.classList.remove("selected")); btn.classList.add("selected"); };
 
 window.crearPartido = async () => {
-  if(!state.canchaSeleccionada){ alert("Elegí una cancha"); return; }
+  if(!state.canchaSeleccionada){ window.mostrarAviso("Elegí una cancha"); return; }
   let h = document.getElementById("hora").value;
   let f = document.getElementById("fecha").value;
   let j = parseInt(document.getElementById("jugadores").value);
   let pr = document.getElementById("precio").value;
-  if(!h||!f||!j){ alert("Completá todos los campos"); return; }
+  if(!h||!f||!j){ window.mostrarAviso("Completá todos los campos"); return; }
 
   // Calcular timestamps de inicio y fin
   let durMinutos = state.durSel === '2h' ? 120 : state.durSel === '1:30h' ? 90 : 60;
@@ -255,7 +255,7 @@ window.retirarSolicitud = async partidoId => {
       if(p) p.solicitudes = (p.solicitudes || []).filter(s => s.uid !== uid);
     }
   } catch(e) {
-    alert(e.message || 'No se pudo retirar la solicitud. Intentá de nuevo.');
+    window.mostrarAviso(e.message || 'No se pudo retirar la solicitud. Intentá de nuevo.', 'error');
   } finally {
     retirosEnCurso.delete(partidoId);
     if(state.usuario?.uid === uid) renderTabPartidos();
@@ -430,10 +430,10 @@ window.aceptar = async (i) => {
         creadoEn: serverTimestamp()
       });
     } catch(e) {
-      alert("Jugador aceptado, pero no se pudo enviar la notificación.");
+      window.mostrarAviso("Jugador aceptado, pero no se pudo enviar la notificación.");
     }
   } catch(e) {
-    alert(e.message || "No se pudo aceptar al jugador. Intentá de nuevo.");
+    window.mostrarAviso(e.message || "No se pudo aceptar al jugador. Intentá de nuevo.", 'error');
   } finally {
     aceptacionesEnCurso.delete(partidoId);
   }
@@ -588,7 +588,7 @@ window.bajarseDepartido = async (i) => {
   let unaHora = 60 * 60 * 1000;
 
   if(p.inicioTimestamp && (p.inicioTimestamp - ahora) < unaHora){
-    alert("No podés bajarte a menos de 1 hora del inicio.");
+    window.mostrarAviso("No podés bajarte a menos de 1 hora del inicio.");
     return;
   }
 
