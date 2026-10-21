@@ -226,14 +226,12 @@ function solicitudesPendientesHTML(){
   const pendientes = obtenerSolicitudesPendientes();
   if(!pendientes.length) return '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">No tenés solicitudes pendientes.</div></div>';
   return '<section aria-label="Solicitudes enviadas"><p class="section-title">Solicitudes enviadas · ' + pendientes.length + '</p>' +
-    pendientes.map(p => `<div class="partido-item" style="cursor:default;">
+    pendientes.map(p => `<div class="partido-item" role="button" tabindex="0" data-partido-id="${escaparJugador(p.id)}" onclick="abrirSolicitudPendiente(this.dataset.partidoId)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirSolicitudPendiente(this.dataset.partidoId);}">
       <div class="partido-item-title">${escaparJugador(p.cancha)}</div>
       <div class="partido-item-sub">${escaparJugador(p.fecha || '')} · ${escaparJugador(p.hora || '')} · Fútbol ${escaparJugador(p.tipo)}</div>
       <div class="partido-item-sub" style="margin-top:6px;">Esperando que el creador te acepte</div>
-      <button type="button" data-partido-id="${escaparJugador(p.id)}" onclick="retirarSolicitud(this.dataset.partidoId)" ${retirosEnCurso.has(p.id) ? 'disabled' : ''}
-        style="margin-top:12px;min-height:44px;padding:8px 14px;background:var(--surface2);border:1px solid #444;border-radius:8px;color:var(--text);font:inherit;cursor:pointer;">
-        ${retirosEnCurso.has(p.id) ? 'Retirando…' : 'Retirar solicitud'}
-      </button>
+      <div class="partido-item-sub" style="margin-top:10px;color:var(--green);">Ver partido ›</div>
+
     </div>`).join('') + '</section>';
 }
 
@@ -260,6 +258,7 @@ window.retirarSolicitud = async partidoId => {
       const p = state.partidos.find(p => p.id === partidoId);
       if(p) p.solicitudes = (p.solicitudes || []).filter(s => s.uid !== uid);
     }
+    return true;
   } catch(e) {
     window.mostrarAviso(e.message || 'No se pudo retirar la solicitud. Intentá de nuevo.', 'error');
   } finally {
