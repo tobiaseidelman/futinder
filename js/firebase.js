@@ -20,4 +20,4 @@ const provider = new GoogleAuthProvider();
 
 
 // Configuración pública del cliente; los permisos se definen en las reglas de Firebase.
-export { initializeApp, getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, query, orderBy, where, serverTimestamp, increment, arrayUnion, arrayRemove, getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, getStorage, ref, uploadBytes, getDownloadURL, deleteObject, firebaseConfig, app, db, auth, storage, provider };
+export { initializeApp, getFirestore, runTransaction, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, query, orderBy, where, serverTimestamp, increment, arrayUnion, arrayRemove, getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, getStorage, ref, uploadBytes, getDownloadURL, deleteObject, firebaseConfig, app, db, auth, storage, provider };
