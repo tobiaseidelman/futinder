@@ -112,9 +112,11 @@ let tabActual = 'creados';
 window.switchTab = (tab) => {
   tabActual = tab;
   document.getElementById("tab-creados").classList.toggle("active", tab === 'creados');
+  document.getElementById("tab-pendientes")?.classList.toggle("active", tab === 'pendientes');
   document.getElementById("tab-confirmados").classList.toggle("active", tab === 'confirmados');
   document.getElementById("tab-finalizados").classList.toggle("active", tab === 'finalizados');
   renderTabPartidos();
+  document.getElementById("tab-" + tab)?.scrollIntoView({block:"nearest",inline:"nearest",behavior:"smooth"});
 };
 
 // Compatibilidad: partidos viejos guardan confirmados como string, los nuevos como {nombre,uid}
@@ -210,15 +212,19 @@ function estadoBadge(estado){
 
 const retirosEnCurso = new Set();
 
-function solicitudesPendientesHTML(){
+function obtenerSolicitudesPendientes(){
   const uid = state.usuario?.uid;
-  if(!uid || tabActual === 'finalizados') return '';
-  const pendientes = state.partidos.filter(p =>
+  if(!uid) return [];
+  return state.partidos.filter(p =>
     (p.solicitudes || []).some(s => s.uid === uid) &&
     !(p.confirmados || []).some(c => uidDeConfirmado(c) === uid) &&
     getEstadoPartido(p) === 'activo'
   );
-  if(!pendientes.length) return '';
+}
+
+function solicitudesPendientesHTML(){
+  const pendientes = obtenerSolicitudesPendientes();
+  if(!pendientes.length) return '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">No tenés solicitudes pendientes.</div></div>';
   return '<section aria-label="Solicitudes enviadas"><p class="section-title">Solicitudes enviadas · ' + pendientes.length + '</p>' +
     pendientes.map(p => `<div class="partido-item" style="cursor:default;">
       <div class="partido-item-title">${escaparJugador(p.cancha)}</div>
@@ -228,7 +234,7 @@ function solicitudesPendientesHTML(){
         style="margin-top:12px;min-height:44px;padding:8px 14px;background:var(--surface2);border:1px solid #444;border-radius:8px;color:var(--text);font:inherit;cursor:pointer;">
         ${retirosEnCurso.has(p.id) ? 'Retirando…' : 'Retirar solicitud'}
       </button>
-    </div>`).join('') + '</section><p class="section-title">' + (tabActual === 'creados' ? 'Partidos creados' : 'Partidos confirmados') + '</p>';
+    </div>`).join('') + '</section>';
 }
 
 window.retirarSolicitud = async partidoId => {
@@ -263,6 +269,12 @@ window.retirarSolicitud = async partidoId => {
 };
 
 function renderTabPartidos(){
+  const contador = document.getElementById('pendientesCount');
+  if(contador){
+    const total = obtenerSolicitudesPendientes().length;
+    contador.textContent = String(total);
+    contador.hidden = total === 0;
+  }
   let html = '';
   if(tabActual === 'creados'){
     let mios = state.partidos.filter(p => (p.creadorUid === state.usuario.uid || p.creador === state.perfil.nombre) && !p.ocultoCreador && getEstadoPartido(p) !== 'finalizado');
@@ -280,6 +292,8 @@ function renderTabPartidos(){
         <div class="partido-item-sub" style="margin-top:4px;">👨‍🔧 Creador · ${estado==='activo'?`${pend} solicitud${pend!==1?'es':''} pendiente${pend!==1?'s':''}`:estado}</div>
       </div>`;
     });
+  } else if(tabActual === 'pendientes'){
+    html = solicitudesPendientesHTML();
   } else if(tabActual === 'confirmados'){
     let conf = state.partidos.filter(p => p.creadorUid !== state.usuario.uid && p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === state.perfil.nombre) && !(p.ocultoPara||[]).includes(state.perfil.nombre) && getEstadoPartido(p) !== 'finalizado');
     if(conf.length === 0){
@@ -321,7 +335,7 @@ function renderTabPartidos(){
       </div>`;
     });
   }
-  document.getElementById("listaPartidos").innerHTML = solicitudesPendientesHTML() + html;
+  document.getElementById("listaPartidos").innerHTML = html;
 }
 
 window.eliminarDeConfirmados = async (partidoId) => {
@@ -339,6 +353,7 @@ window.eliminarDeCreados = async (partidoId) => {
 window.verMisPartidos = () => {
   tabActual = 'creados';
   document.getElementById("tab-creados").classList.add("active");
+  document.getElementById("tab-pendientes")?.classList.remove("active");
   document.getElementById("tab-confirmados").classList.remove("active");
   document.getElementById("tab-finalizados").classList.remove("active");
   renderTabPartidos();
