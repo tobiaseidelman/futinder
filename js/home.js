@@ -117,7 +117,8 @@ async function cargarCreadorTarjeta(p){
     if(avatar && typeof datos.foto === 'string' && (/^https?:\/\//.test(datos.foto) || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(datos.foto))){
       const img = document.createElement('img');
       img.src = datos.foto;
-      img.alt = '';
+      img.alt = 'Foto de ' + (p.creador || 'jugador');
+      window.prepararFotoAmpliable(img);
       img.onerror = () => { avatar.textContent = (p.creador || '?')[0].toUpperCase(); };
       avatar.replaceChildren(img);
     }
