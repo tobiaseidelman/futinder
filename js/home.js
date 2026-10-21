@@ -290,7 +290,9 @@ window.next = () => {
   render();
 };
 
+let enviandoSolicitud = false;
 window.match = async () => {
+  if(enviandoSolicitud) return;
   if(!state.perfil) return;
   let ahora = Date.now();
   let filtrados = state.partidos.filter(p => {
@@ -304,16 +306,20 @@ window.match = async () => {
   });
   let p = filtrados[state.idx];
   if(!p){ render(); return; }
-  if(p.creador === state.perfil.nombre){ alert("Este partido es tuyo"); return; }
-  if((p.solicitudes||[]).some(s => s.nombre === state.perfil.nombre)){ alert("Ya mandaste solicitud"); return; }
-  if((p.confirmados||[]).some(c => nombreDeConfirmado(c) === state.perfil.nombre)){ alert("Ya estás confirmado"); return; }
+  if(p.creador === state.perfil.nombre){ window.mostrarAviso("Este partido es tuyo"); return; }
+  if((p.solicitudes||[]).some(s => s.nombre === state.perfil.nombre)){ window.mostrarAviso("Ya mandaste solicitud"); return; }
+  if((p.confirmados||[]).some(c => nombreDeConfirmado(c) === state.perfil.nombre)){ window.mostrarAviso("Ya estás confirmado"); return; }
 
+  enviandoSolicitud = true;
+  try {
   // Las imágenes se consultan por UID; no duplicarlas dentro de cada partido.
   const { foto, jugadas, ...perfilSolicitud } = state.perfil;
   let nuevasSolicitudes = [...(p.solicitudes||[]), {...perfilSolicitud, uid: state.usuario.uid}];
   await updateDoc(doc(db, "partidos", p.id), { solicitudes: nuevasSolicitudes });
 
+  window.mostrarAviso("Solicitud enviada", "success");
   // Notificación al creador en Firebase
+  try {
   await addDoc(collection(db, "usuarios", p.creadorUid, "notificaciones"), {
     tipo: "solicitud",
     texto: `${state.perfil.nombre} quiere unirse a ${p.cancha}`,
@@ -322,8 +328,15 @@ window.match = async () => {
     creadoEn: serverTimestamp()
   });
 
+  } catch(e) {
+    window.mostrarAviso("Solicitud enviada, pero no se pudo avisar al creador.", "error");
+  }
   render();
-  alert("¡Solicitud enviada! ✅");
+  } catch(e) {
+    window.mostrarAviso("No se pudo enviar. Intentá de nuevo.", "error");
+  } finally {
+    enviandoSolicitud = false;
+  }
 };
 
 
