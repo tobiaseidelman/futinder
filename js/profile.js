@@ -150,6 +150,7 @@ window.prepararFotoAmpliable = img => {
 window.ampliarFotoPerfil = (src, origen) => {
   if(typeof src !== 'string' || !/^(https?:\/\/|data:image\/)/.test(src)) return;
   const anterior = document.activeElement;
+  const focoDeTeclado = !!origen?.matches(':focus-visible');
   const dialog = document.createElement('dialog');
   dialog.className = 'foto-circulo-dialog';
   dialog.setAttribute('aria-label','Foto de perfil ampliada. Tocá para cerrar.');
@@ -161,7 +162,13 @@ window.ampliarFotoPerfil = (src, origen) => {
   document.body.append(dialog);
   dialog.addEventListener('close', () => {
     document.body.style.overflow = overflowAnterior;
-    dialog.remove(); anterior?.focus?.();
+    dialog.remove();
+    if(focoDeTeclado){
+      (origen || anterior)?.focus?.({preventScroll:true});
+    } else if(document.activeElement === origen || document.activeElement?.classList.contains('foto-ampliable')){
+      // El cierre nativo restaura el foco; un toque no debe dejar el aro marcado.
+      document.activeElement.blur();
+    }
   }, {once:true});
   let cerrando = false;
   let animacion = null;
