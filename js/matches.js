@@ -586,6 +586,7 @@ window.verInfoPartido = (i) => {
 };
 
 function getBajarseBtnHTML(p, i){
+  if(getEstadoPartido(p) === 'finalizado') return '';
   let ahora = Date.now();
   let unaHora = 60 * 60 * 1000;
   if(p.inicioTimestamp && (p.inicioTimestamp - ahora) < unaHora){
