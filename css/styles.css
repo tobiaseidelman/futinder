@@ -184,9 +184,10 @@
   .submit-btn:active { opacity: 0.85; }
 
   .perfil-screen { flex: 1; padding-bottom: 100px; overflow-y: auto; }
-  .perfil-header { position: relative; height: 200px; overflow: hidden; }
+  .perfil-header { position: relative; height: 200px; overflow: visible; }
   .perfil-cover { width: 100%; height: 100%; background: linear-gradient(135deg, #001a00, #0a3000); display: flex; align-items: center; justify-content: center; font-size: 80px; }
-  .perfil-avatar-wrap { position: absolute; bottom: -40px; left: 20px; }
+  .perfil-avatar-wrap { position: absolute; bottom: -40px; left: 20px; z-index: 1; }
+  .perfil-avatar-wrap > img { display: block; }
   .perfil-avatar { width: 80px; height: 80px; border-radius: 50%; background: var(--green-dim); border: 3px solid var(--bg); display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: var(--green); }
   .perfil-body { padding: 52px 20px 20px; }
   .perfil-nombre { font-family: 'Bebas Neue', sans-serif; font-size: 30px; letter-spacing: 1px; }
