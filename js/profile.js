@@ -124,7 +124,7 @@ function recortarFoto(file){
         usar.disabled=true;
         canvas.toBlob(blob => {
           if(!dialog.open) return;
-          if(!blob){ usar.disabled=false; alert('No se pudo preparar la foto. Probá de nuevo.'); return; }
+          if(!blob){ usar.disabled=false; window.mostrarAviso('No se pudo preparar la foto. Probá de nuevo.', 'error'); return; }
           resultado = new File([blob], 'perfil.jpg', {type:'image/jpeg'});
           dialog.close();
         }, 'image/jpeg', 0.9);
@@ -198,8 +198,8 @@ window.ampliarFotoPerfil = (src, origen) => {
 window.previsualizarFoto = async (input, previewId) => {
   const file = input.files[0];
   if(!file || fotoProcesando) return;
-  if(!file.type.startsWith('image/')){ alert('Elegí un archivo de imagen'); input.value=''; return; }
-  if(file.size > 15*1024*1024){ alert('Elegí una imagen de menos de 15 MB'); input.value=''; return; }
+  if(!file.type.startsWith('image/')){ window.mostrarAviso('Elegí un archivo de imagen'); input.value=''; return; }
+  if(file.size > 15*1024*1024){ window.mostrarAviso('Elegí una imagen de menos de 15 MB'); input.value=''; return; }
   fotoProcesando = true;
   try {
     const recorte = await recortarFoto(file);
@@ -213,7 +213,7 @@ window.previsualizarFoto = async (input, previewId) => {
     fotoNuevaFile=preparada;
   } catch(e) {
     console.error('Error preparando foto:',e);
-    alert('No se pudo preparar esa imagen. Probá con otra.');
+    window.mostrarAviso('No se pudo preparar esa imagen. Probá con otra.', 'error');
   } finally { fotoProcesando=false; input.value=''; }
 };
 
@@ -247,8 +247,8 @@ let jugadaSubiendo = false;
 window.agregarJugada = async (input) => {
   let file = input.files[0];
   if(!file) return;
-  if(!file.type.startsWith('image/')){ alert("Elegí un archivo de imagen"); return; }
-  if((state.perfil.jugadas||[]).length >= 6){ alert("Máximo 6 fotos de jugadas por ahora."); return; }
+  if(!file.type.startsWith('image/')){ window.mostrarAviso("Elegí un archivo de imagen"); return; }
+  if((state.perfil.jugadas||[]).length >= 6){ window.mostrarAviso("Máximo 6 fotos de jugadas por ahora."); return; }
   jugadaSubiendo = true;
   verMiPerfil();
   try{
@@ -258,7 +258,7 @@ window.agregarJugada = async (input) => {
     await updateDoc(doc(db, "usuarios", state.usuario.uid), { jugadas: arrayUnion(url) });
   }catch(e){
     console.error("Error subiendo jugada:", e);
-    alert("No se pudo subir la foto, probá de nuevo.");
+    window.mostrarAviso("No se pudo subir la foto, probá de nuevo.", 'error');
   }
   jugadaSubiendo = false;
   verMiPerfil();
@@ -273,15 +273,15 @@ window.eliminarJugada = async (url) => {
 };
 
 window.crearPerfil = async () => {
-  if(fotoProcesando){ alert('Esperá a que termine de prepararse la foto'); return; }
+  if(fotoProcesando){ window.mostrarAviso('Esperá a que termine de prepararse la foto'); return; }
   let n = document.getElementById("nombreNuevo").value.trim();
-  if(!n){ alert("Ingresá tu nombre"); return; }
-  if(!state.posSel){ alert("Elegí tu posición"); return; }
+  if(!n){ window.mostrarAviso("Ingresá tu nombre"); return; }
+  if(!state.posSel){ window.mostrarAviso("Elegí tu posición"); return; }
 
   let fotoUrl = state.usuario.photoURL || null;
   if(fotoNuevaFile){
     try{ fotoUrl = await leerFotoPerfil(fotoNuevaFile); }
-    catch(e){ console.error("Error preparando foto:", e); alert("No se pudo preparar la foto. Probá con otra."); return; }
+    catch(e){ console.error("Error preparando foto:", e); window.mostrarAviso("No se pudo preparar la foto. Probá con otra.", 'error'); return; }
   }
 
   state.perfil = {
@@ -364,7 +364,7 @@ window.editarPerfil = () => {
 let guardandoPerfil = false;
 window.guardarPerfil = async () => {
   if(guardandoPerfil) return;
-  if(fotoProcesando){ alert('Esperá a que termine de prepararse la foto'); return; }
+  if(fotoProcesando){ window.mostrarAviso('Esperá a que termine de prepararse la foto'); return; }
   guardandoPerfil = true;
   try {
     const cambios = {
@@ -378,9 +378,10 @@ window.guardarPerfil = async () => {
     Object.assign(state.perfil, cambios);
     fotoNuevaFile = null;
     verMiPerfil();
+    window.mostrarAviso('Perfil guardado', 'success');
   } catch(e) {
     console.error('Error guardando perfil:', e);
-    alert('No se pudieron guardar los cambios. Tu foto anterior se conserva. Probá de nuevo.');
+    window.mostrarAviso('No se pudieron guardar los cambios. Tu foto anterior se conserva. Probá de nuevo.', 'error');
   } finally { guardandoPerfil = false; }
 };
 
