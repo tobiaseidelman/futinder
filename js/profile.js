@@ -5,6 +5,75 @@ import { iniciarNotificaciones } from './notifications.js';
 import { pedirPermisosSesion } from './location.js';
 import { TAGS } from './data/tags.js';
 
+
+let portadaEditada;
+let portadaYEdit = 50;
+let portadaProcesando = false;
+let portadaEdicion = 0;
+function portadaValida(src){
+  return typeof src === 'string' && src.length <= 90000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(src);
+}
+function posicionPortada(valor){
+  const n = Number(valor);
+  return Number.isFinite(n) ? Math.max(0,Math.min(100,n)) : 50;
+}
+function portadaHTML(perfil, clase = 'perfil-cover'){
+  const y = posicionPortada(perfil.portadaY ?? 50);
+  return '<div class="' + clase + '">' + (portadaValida(perfil.portada)
+    ? '<img src="' + perfil.portada + '" alt="Portada del perfil" style="object-position:center ' + y + '%;">'
+    : '') + '</div>';
+}
+function actualizarPreviewPortada(){
+  const src = portadaEditada === undefined ? state.perfil.portada : portadaEditada;
+  const preview = document.getElementById('previewPortadaEdit');
+  if(!preview) return;
+  preview.innerHTML = portadaValida(src) ? portadaHTML({portada:src,portadaY:portadaYEdit},'portada-preview-img') : '<span>Sin portada</span>';
+  document.getElementById('quitarPortadaBtn').hidden = !portadaValida(src);
+  document.getElementById('posicionPortadaGroup').hidden = !portadaValida(src);
+  document.getElementById('portadaYInput').value = portadaYEdit;
+}
+window.centrarPortada = valor => {
+  portadaYEdit = posicionPortada(valor);
+  actualizarPreviewPortada();
+};
+window.quitarPortada = () => {
+  if(portadaProcesando || guardandoPerfil) return;
+  portadaEditada = '';
+  portadaYEdit = 50;
+  actualizarPreviewPortada();
+};
+window.previsualizarPortada = async input => {
+  const file = input.files[0];
+  if(!file || portadaProcesando || guardandoPerfil) return;
+  if(!file.type.startsWith('image/') || file.size > 15*1024*1024){
+    window.mostrarAviso('Elegí una imagen de menos de 15 MB.', 'error');
+    input.value = '';
+    return;
+  }
+  const edicion = portadaEdicion;
+  const uid = state.usuario?.uid;
+  portadaProcesando = true;
+  try {
+    const comprimida = await comprimirImagen(file,960,64);
+    const src = await new Promise((resolve,reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('No se pudo leer la portada.'));
+      reader.readAsDataURL(comprimida);
+    });
+    if(!portadaValida(src)) throw new Error('No se pudo preparar la portada.');
+    if(edicion !== portadaEdicion || uid !== state.usuario?.uid) return;
+    portadaEditada = src;
+    portadaYEdit = 50;
+    actualizarPreviewPortada();
+  } catch(e) {
+    window.mostrarAviso('No se pudo preparar la portada. Probá con otra imagen.', 'error');
+  } finally {
+    portadaProcesando = false;
+    input.value = '';
+  }
+};
+
 // ---- PERFIL ----
 let fotoNuevaFile = null;
 let fotoProcesando = false;
@@ -313,8 +382,8 @@ window.crearPerfil = async () => {
 
 window.verMiPerfil = () => {
   document.getElementById("perfilContent").innerHTML = `
-    <div class="perfil-header">
-      <div class="perfil-cover">⚽</div>
+    <div class="perfil-header ${portadaValida(state.perfil.portada) ? 'con-portada' : 'sin-portada'}">
+      ${portadaHTML(state.perfil)}
       <div class="perfil-avatar-wrap">
         ${state.perfil.foto ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src, this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src, this);}" src="${state.perfil.foto}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="perfil-avatar">${state.perfil.nombre[0].toUpperCase()}</div>`}
       </div>
@@ -358,6 +427,10 @@ window.verMiPerfil = () => {
 };
 
 window.editarPerfil = () => {
+  portadaEdicion++;
+  portadaEditada = undefined;
+  portadaYEdit = posicionPortada(state.perfil.portadaY ?? 50);
+  actualizarPreviewPortada();
   document.getElementById("editNombre").value = state.perfil.nombre;
   document.getElementById("editBio").value = state.perfil.bio||'';
   document.getElementById("editZona").value = state.perfil.zona||'';
@@ -371,6 +444,7 @@ window.editarPerfil = () => {
 let guardandoPerfil = false;
 window.guardarPerfil = async () => {
   if(guardandoPerfil) return;
+  if(portadaProcesando){ window.mostrarAviso('Esperá a que termine de prepararse la portada'); return; }
   if(fotoProcesando){ window.mostrarAviso('Esperá a que termine de prepararse la foto'); return; }
   guardandoPerfil = true;
   try {
@@ -380,6 +454,8 @@ window.guardarPerfil = async () => {
       bio: document.getElementById("editBio").value,
       zona: document.getElementById("editZona").value,
     };
+    if(portadaEditada !== undefined) cambios.portada = portadaEditada;
+    if(portadaEditada !== undefined || portadaValida(state.perfil.portada)) cambios.portadaY = portadaYEdit;
     if(fotoNuevaFile) cambios.foto = await leerFotoPerfil(fotoNuevaFile);
     await updateDoc(doc(db, "usuarios", state.usuario.uid), cambios);
     Object.assign(state.perfil, cambios);
@@ -401,6 +477,7 @@ window.abrirPerfilJugador = async (uid, nombre) => {
     let p = snap.exists() ? snap.data() : { nombre: nombre, posicion: '', bio: 'Sin bio', zona: 'Sin zona', partidos: 0, rating: 0 };
     let foto = p.foto ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src, this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src, this);}" src="${p.foto}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="modal-avatar">${(p.nombre||nombre)[0].toUpperCase()}</div>`;
     document.getElementById("modalContent").innerHTML = `
+      ${portadaValida(p.portada) ? portadaHTML(p, 'modal-portada') : ''}
       <div class="modal-perfil-header">
         ${foto}
         <div>
