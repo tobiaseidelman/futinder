@@ -136,8 +136,18 @@ function posicionCompleta(posicion){
 function reputacionSolicitud(datos){
   const total = Number(datos.calificacionesRecibidas);
   const rating = Number(datos.rating);
-  if(!Number.isInteger(total) || total <= 0 || !Number.isFinite(rating) || rating < 1 || rating > 5) return 'Sin opiniones';
-  return '★ ' + rating.toLocaleString('es-UY',{minimumFractionDigits:1,maximumFractionDigits:1}) + ' · ' + total + (total === 1 ? ' opinión' : ' opiniones');
+  const tieneOpiniones = Number.isInteger(total) && total > 0 && Number.isFinite(rating) && rating >= 1 && rating <= 5;
+  const puntuacion = tieneOpiniones ? rating : 0;
+  const estrellas = Array.from({length:5}, (_, i) => {
+    const relleno = Math.round(Math.max(0, Math.min(1, puntuacion - i)) * 100);
+    return '<span style="color:#555;position:relative;display:inline-block;">★<span style="position:absolute;left:0;top:0;overflow:hidden;white-space:nowrap;color:var(--green);width:' + relleno + '%;">★</span></span>';
+  }).join('');
+  const detalle = tieneOpiniones
+    ? puntuacion.toLocaleString('es-UY',{minimumFractionDigits:1,maximumFractionDigits:1}) + ' · ' + total + (total === 1 ? ' opinión' : ' opiniones')
+    : 'Sin opiniones';
+  return '<span style="display:inline-flex;gap:2px;margin-right:6px;" role="img" aria-label="' +
+    (tieneOpiniones ? puntuacion.toFixed(1) + ' de 5 estrellas' : 'Sin puntuación') +
+    '">' + estrellas + '</span><span>' + detalle + '</span>';
 }
 
 async function cargarAvataresJugadores(contenedor){
@@ -156,7 +166,7 @@ async function cargarAvataresJugadores(contenedor){
         return;
       }
       const datos = snap.data();
-      if(reputacion) reputacion.textContent = reputacionSolicitud(datos);
+      if(reputacion) reputacion.innerHTML = reputacionSolicitud(datos);
       const posicion = fila?.querySelector('[data-posicion]');
       if(posicion) posicion.textContent = posicionCompleta(datos.posicion);
       const foto = datos.foto;
