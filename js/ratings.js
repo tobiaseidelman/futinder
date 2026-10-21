@@ -1,14 +1,16 @@
 import { TAGS, TAG_UMBRAL, TAG_NOTIF_CADA } from './data/tags.js';
 import { state } from './state.js';
 import { nombreDeConfirmado, uidDeConfirmado } from './matches.js';
-import { updateDoc, doc, db, addDoc, collection, serverTimestamp, getDoc, setDoc } from './firebase.js';
+import { runTransaction, updateDoc, doc, db, addDoc, collection, serverTimestamp, getDoc, setDoc } from './firebase.js';
 
 // ---- SISTEMA DE RATING ----
+let enviandoRating = false;
 let ratingActual = 0;
 let tagsSeleccionados = [];
 let ratingTarget = { nombre: '', partidoId: '', creadorUid: '' };
 
 window.abrirModalRating = (nombre, partidoId, creadorUid) => {
+  if(enviandoRating) return;
   ratingActual = 0;
   tagsSeleccionados = [];
   ratingTarget = { nombre, partidoId, creadorUid };
@@ -44,16 +46,18 @@ function renderModalRating(){
     <div style="display:flex;justify-content:center;gap:8px;margin-bottom:20px;">${starsHTML}</div>
     <p class="section-title">Tags (máximo 3)</p>
     <div style="display:flex;flex-wrap:wrap;margin-bottom:20px;">${tagsHTML}</div>
-    <button onclick="enviarRating()" style="width:100%;padding:14px;background:var(--green);color:#000;border:none;border-radius:var(--radius-sm);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;cursor:pointer;">ENVIAR CALIFICACIÓN</button>
+    <button id="enviarRatingBtn" onclick="enviarRating()" style="width:100%;padding:14px;background:var(--green);color:#000;border:none;border-radius:var(--radius-sm);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;cursor:pointer;">ENVIAR CALIFICACIÓN</button>
   `;
 }
 
 window.selStar = (n) => {
+  if(enviandoRating) return;
   ratingActual = n;
   renderModalRating();
 };
 
 window.selTag = (id) => {
+  if(enviandoRating) return;
   if(tagsSeleccionados.includes(id)){
     tagsSeleccionados = tagsSeleccionados.filter(t => t !== id);
   } else {
@@ -64,54 +68,75 @@ window.selTag = (id) => {
 };
 
 window.enviarRating = async () => {
-  if(ratingActual === 0){ alert("Elegí al menos una estrella"); return; }
-
-  let nombre = ratingTarget.nombre;
-  let partidoId = ratingTarget.partidoId;
-
-  // Buscar uid del jugador a calificar
-  let p = state.partidos.find(x => x.id === partidoId);
-  if(!p) return;
-
-  // Buscar uid directo en confirmados (ya guarda nombre+uid)
-  let confirmadoData = (p.confirmados||[]).find(c => nombreDeConfirmado(c) === nombre);
-  let targetUid = confirmadoData ? uidDeConfirmado(confirmadoData) : null;
-  if(!targetUid && nombre === p.creador) targetUid = p.creadorUid;
-
-  // Guardar calificacion en el partido (para saber quién ya calificó a quién)
-  let calificaciones = p.calificaciones || {};
-  let misCalif = calificaciones[state.perfil.nombre] || [];
-  misCalif.push(nombre);
-  calificaciones[state.perfil.nombre] = misCalif;
-  await updateDoc(doc(db, "partidos", partidoId), { calificaciones });
-
-  // Guardar rating en subcoleccion del jugador calificado
-  if(targetUid){
-    await addDoc(collection(db, "usuarios", targetUid, "ratings"), {
-      de: state.perfil.nombre,
-      deUid: state.usuario.uid,
-      estrellas: ratingActual,
-      tags: tagsSeleccionados,
-      partidoId,
-      fecha: serverTimestamp()
+  if(enviandoRating) return;
+  if(!Number.isInteger(ratingActual) || ratingActual < 1 || ratingActual > 5){ alert("Elegí al menos una estrella"); return; }
+  if(!state.usuario || !state.perfil) return;
+  const {nombre, partidoId} = ratingTarget;
+  const autorUid = state.usuario.uid;
+  const autorNombre = state.perfil.nombre;
+  const estrellas = ratingActual;
+  const tags = [...new Set(tagsSeleccionados)].filter(id=>TAGS.some(t=>t.id===id)).slice(0,3);
+  const local = state.partidos.find(x => x.id === partidoId);
+  if(!local) return;
+  const jugador = (local.confirmados||[]).find(c => nombreDeConfirmado(c) === nombre);
+  const targetUid = (jugador ? uidDeConfirmado(jugador) : null) || (nombre === local.creador ? local.creadorUid : null);
+  if(!targetUid){ alert('No se pudo identificar al jugador.'); return; }
+  if(targetUid === autorUid){ alert('No podés calificarte a vos mismo.'); return; }
+  enviandoRating = true;
+  const boton = document.getElementById('enviarRatingBtn');
+  if(boton){ boton.disabled = true; boton.textContent = 'Guardando…'; }
+  try {
+    const partidoRef = doc(db,'partidos',partidoId);
+    const perfilRef = doc(db,'usuarios',targetUid);
+    // Una sola opinión por autor y partido en la colección del jugador.
+    const opinionRef = doc(db,'usuarios',targetUid,'ratings',encodeURIComponent(partidoId)+'__'+encodeURIComponent(autorUid));
+    const resultado = await runTransaction(db, async tx => {
+      const partidoSnap = await tx.get(partidoRef);
+      const opinionSnap = await tx.get(opinionRef);
+      const perfilSnap = await tx.get(perfilRef);
+      if(!partidoSnap.exists() || !perfilSnap.exists()) throw new Error('No se encontró el partido o el jugador.');
+      const p = partidoSnap.data();
+      const claveAutor = encodeURIComponent(autorUid);
+      const porUid = p.calificacionesPorUid || {};
+      const anteriores = porUid[claveAutor] || [];
+      const legado = (p.calificaciones || {})[autorNombre] || [];
+      if(opinionSnap.exists() || anteriores.includes(targetUid) || legado.includes(nombre)){
+        return {duplicada:true,p};
+      }
+      const participa = uid => p.creadorUid === uid || (p.confirmados||[]).some(c=>uidDeConfirmado(c) === uid);
+      if(!participa(autorUid) || !participa(targetUid)) throw new Error('Solo pueden calificarse los jugadores de este partido.');
+      if(!Number.isFinite(p.finTimestamp) || Date.now() < p.finTimestamp) throw new Error('Podés calificar cuando termine el partido.');
+      const calificacionesPorUid = {...porUid,[claveAutor]:[...anteriores,targetUid]};
+      const calificaciones = {...(p.calificaciones||{}),[autorNombre]:[...new Set([...legado,nombre])]};
+      tx.set(opinionRef,{de:autorNombre,deUid:autorUid,estrellas,tags,partidoId,fecha:serverTimestamp()});
+      tx.update(partidoRef,{calificacionesPorUid,calificaciones});
+      await actualizarStatsJugador(targetUid,estrellas,tags,tx,perfilSnap.data());
+      return {duplicada:false,p:{...p,calificacionesPorUid,calificaciones}};
     });
-
-    // Actualizar stats del jugador calificado
-    await actualizarStatsJugador(targetUid, ratingActual, tagsSeleccionados);
+    Object.assign(local,resultado.p);
+    // También ocultar el botón si encontramos una opinión previa por su ID único.
+    const claveAutor = encodeURIComponent(autorUid);
+    local.calificacionesPorUid = {...(local.calificacionesPorUid||{}),[claveAutor]:[...new Set([...(local.calificacionesPorUid?.[claveAutor]||[]),targetUid])]};
+    window.cerrarModalRating();
+    const i = state.partidos.indexOf(local);
+    if(i >= 0){
+      if(local.creadorUid === autorUid) verDetalle(i); else verInfoPartido(i);
+    }
+    alert(resultado.duplicada ? 'Ya calificaste a este jugador en este partido.' : '¡Calificación enviada! ✅');
+  } catch(e) {
+    console.error('Error al calificar:',e);
+    alert(e.message || 'No se pudo guardar la calificación. Probá de nuevo.');
+  } finally {
+    enviandoRating = false;
+    if(boton){ boton.disabled = false; boton.textContent = 'ENVIAR CALIFICACIÓN'; }
   }
-
-  cerrarModalRating();
-  // Refrescar pantalla (creador ve "creador", el resto ve "infoPartido")
-  let i = state.partidos.indexOf(p);
-  if(p.creadorUid === state.usuario.uid) verDetalle(i); else verInfoPartido(i);
-  alert("¡Calificación enviada! ✅");
 };
 
-async function actualizarStatsJugador(targetUid, estrellas, tags){
+async function actualizarStatsJugador(targetUid, estrellas, tags, tx = null, datosPrevios = null){
   const perfilRef = doc(db, "usuarios", targetUid);
-  const snap = await getDoc(perfilRef);
-  if(!snap.exists()) return;
-  let datos = snap.data();
+  const snap = datosPrevios ? null : await getDoc(perfilRef);
+  if(!datosPrevios && !snap.exists()) return;
+  const datos = datosPrevios || snap.data();
 
   // Actualizar rating promedio (contador propio, independiente de partidos jugados)
   let totalCalificaciones = (datos.calificacionesRecibidas || 0) + 1;
@@ -119,8 +144,8 @@ async function actualizarStatsJugador(targetUid, estrellas, tags){
   let nuevoRating = ((ratingViejo * (totalCalificaciones - 1)) + estrellas) / totalCalificaciones;
 
   // Actualizar contadores de tags
-  let tagContadores = datos.tagContadores || {};
-  let tagsMostrar = datos.tagsMostrar || [];
+  let tagContadores = {...(datos.tagContadores || {})};
+  let tagsMostrar = [...(datos.tagsMostrar || [])];
   let notifsPendientes = [];
 
   for(let tagId of tags){
@@ -154,17 +179,18 @@ async function actualizarStatsJugador(targetUid, estrellas, tags){
     }
   }
 
-  await setDoc(perfilRef, {
-    ...datos,
+  const cambios = {
     calificacionesRecibidas: totalCalificaciones,
     rating: nuevoRating,
     tagContadores,
     tagsMostrar
-  });
+  };
+  if(tx) tx.update(perfilRef,cambios);
+  else await updateDoc(perfilRef,cambios);
 
-  // Enviar notificaciones de tags malos
   for(let notif of notifsPendientes){
-    await addDoc(collection(db, "usuarios", targetUid, "notificaciones"), notif);
+    if(tx) tx.set(doc(collection(db,'usuarios',targetUid,'notificaciones')),notif);
+    else await addDoc(collection(db,'usuarios',targetUid,'notificaciones'),notif);
   }
 }
 
