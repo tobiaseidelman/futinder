@@ -346,7 +346,7 @@ window.match = async () => {
   enviandoSolicitud = true;
   try {
   // Las imágenes se consultan por UID; no duplicarlas dentro de cada partido.
-  const { foto, jugadas, ...perfilSolicitud } = state.perfil;
+  const { foto, portada, portadaY, jugadas, ...perfilSolicitud } = state.perfil;
   let nuevasSolicitudes = [...(p.solicitudes||[]), {...perfilSolicitud, uid: state.usuario.uid}];
   await updateDoc(doc(db, "partidos", p.id), { solicitudes: nuevasSolicitudes });
 
