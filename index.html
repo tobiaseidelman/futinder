@@ -305,8 +305,8 @@
   </div>
   <div class="chat-messages" id="mensajes"></div>
   <div class="chat-input-bar">
-    <input class="chat-input" id="mensajeInput" placeholder="Escribí un mensaje..." onkeydown="if(event.key==='Enter') enviarMensaje()">
-    <button class="send-btn" onclick="enviarMensaje()">➤</button>
+    <input class="chat-input" id="mensajeInput" placeholder="Escribí un mensaje..." aria-label="Mensaje" enterkeyhint="send" onkeydown="if(event.key==='Enter' &amp;&amp; !event.isComposing){event.preventDefault();enviarMensaje();}">
+    <button class="send-btn" type="button" aria-label="Enviar mensaje" onclick="enviarMensaje()">➤</button>
   </div>
 </div>
 
