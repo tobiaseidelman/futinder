@@ -54,56 +54,144 @@ window.selTipo = (btn, t) => { state.tipoSel=t; btn.parentElement.querySelectorA
 const origCambiarPantalla = window.cambiarPantalla;
 window.cambiarPantalla = (id) => {
   origCambiarPantalla(id);
-  if(id === 'crear'){
+  if(id === 'crear' && !creandoPartido){
     pedirUbicacion();
     state.canchaSeleccionada = null;
     state.tipoSel = '';
-    document.querySelectorAll("#crear .tipo-btn").forEach(b => b.classList.remove("selected"));
+    document.querySelectorAll("#tipoCrear .tipo-btn").forEach(b => b.classList.remove("selected"));
+    limpiarErroresCrear();
     const cg = document.getElementById("canchaGroup");
     if(cg) cg.style.display = "none";
-    const hoyStr = new Date().toISOString().split('T')[0];
+    const hoyStr = hoyEnUruguay();
     const fi = document.getElementById("fecha");
-    if(fi && !fi.value) fi.value = hoyStr;
+    if(fi){ fi.min = hoyStr; if(!fi.value) fi.value = hoyStr; }
   }
 };
 window.selDur = (btn, d) => { state.durSel=d; btn.parentElement.querySelectorAll(".tipo-btn").forEach(b=>b.classList.remove("selected")); btn.classList.add("selected"); };
 window.selPos = (btn, p) => { state.posSel=p; btn.parentElement.querySelectorAll(".tipo-btn").forEach(b=>b.classList.remove("selected")); btn.classList.add("selected"); };
 window.selPosEdit = (btn, p) => { state.posEditSel=p; btn.parentElement.querySelectorAll(".tipo-btn").forEach(b=>b.classList.remove("selected")); btn.classList.add("selected"); };
 
-window.crearPartido = async () => {
-  if(!state.canchaSeleccionada){ window.mostrarAviso("Elegí una cancha"); return; }
-  let h = document.getElementById("hora").value;
-  let f = document.getElementById("fecha").value;
-  let j = parseInt(document.getElementById("jugadores").value);
-  let pr = document.getElementById("precio").value;
-  if(!h||!f||!j){ window.mostrarAviso("Completá todos los campos"); return; }
 
-  // Calcular timestamps de inicio y fin
-  let durMinutos = state.durSel === '2h' ? 120 : state.durSel === '1:30h' ? 90 : 60;
-  let inicioDate = new Date(`${f}T${h}:00`);
-  let finDate = new Date(inicioDate.getTime() + durMinutos * 60000);
+let creandoPartido = false;
 
-  let max = state.tipoSel==='11'?22:state.tipoSel==='7'?14:10;
-  await addDoc(collection(db,"partidos"), {
-    cancha: state.canchaSeleccionada.nombre,
-    canchaId: state.canchaSeleccionada.id,
-    canchaFoto: state.canchaSeleccionada.foto,
-    canchaDireccion: state.canchaSeleccionada.direccion,
-    canchaLat: state.canchaSeleccionada.lat,
-    canchaLng: state.canchaSeleccionada.lng,
-    canchaZona: state.canchaSeleccionada.zona,
-    hora:h, fecha:f, tipo:state.tipoSel, duracion:state.durSel,
-    inicioTimestamp: inicioDate.getTime(),
-    finTimestamp: finDate.getTime(),
-    jugadores:j, max, precio:pr||0,
-    creador:state.perfil.nombre,
-    creadorUid: state.usuario.uid,
-    solicitudes:[], confirmados:[{nombre: state.perfil.nombre, uid: state.usuario.uid}], mensajes:[],
-    estado: 'activo',
-    creadoEn: serverTimestamp()
+function hoyEnUruguay(){
+  const partes = new Intl.DateTimeFormat('en', {timeZone:'America/Montevideo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  return ['year','month','day'].map(tipo => partes.find(p => p.type === tipo).value).join('-');
+}
+
+function limpiarErroresCrear(contenedor = document.getElementById('crear')){
+  contenedor.querySelectorAll('.error-crear').forEach(e => e.remove());
+  contenedor.querySelectorAll('.campo-error').forEach(e => {
+    e.classList.remove('campo-error');
+    e.removeAttribute('aria-invalid');
+    e.removeAttribute('aria-describedby');
   });
-  state.canchaSeleccionada = null;
-  irHome();
+}
+
+function validarNuevoPartido({tipo, cancha, fecha, hora, jugadores, precio, duracion}, ahora = Date.now()){
+  const errores = {};
+  const max = {'5':10,'7':14,'11':22}[tipo];
+  if(!max) errores.tipoCrear = 'Elegí el tipo de fútbol.';
+  else if(!cancha || cancha.tipo !== tipo) errores.canchaSelector = 'Elegí una cancha para el partido.';
+  const inicio = new Date(fecha + 'T' + hora + ':00-03:00').getTime();
+  const dia = new Date(fecha + 'T00:00:00Z').getTime();
+  const fechaValida = /^\d{4}-\d{2}-\d{2}$/.test(fecha) &&
+    Number.isFinite(dia) && new Date(dia).toISOString().slice(0,10) === fecha;
+  if(!fechaValida) errores.fecha = 'Elegí una fecha válida.';
+  if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) errores.hora = 'Elegí un horario válido.';
+  if(fechaValida && !errores.hora && inicio <= ahora){
+    const hoy = new Date(ahora - 3*3600000).toISOString().slice(0,10);
+    errores[fecha < hoy ? 'fecha' : 'hora'] = 'El partido tiene que empezar en una fecha y hora futuras.';
+  }
+  const cantidad = Number(jugadores);
+  if(!jugadores.trim() || !Number.isInteger(cantidad) || cantidad < 1 || cantidad > (max || 22)){
+    errores.jugadores = 'Ingresá entre 1 y ' + (max || 22) + ' jugadores, incluyéndote.';
+  }
+  if(precio.trim() && (!Number.isFinite(Number(precio)) || Number(precio) < 0)){
+    errores.precio = 'Ingresá un precio igual o mayor a 0.';
+  }
+  return {errores, inicio, max, cantidad, precio:Number(precio || 0), minutos:({'1h':60,'1:30h':90,'2h':120})[duracion] || 90};
+}
+
+const formularioCrear = document.querySelector('#crear .form-screen');
+formularioCrear.addEventListener('input', e => {
+  const grupo = e.target.closest('.form-group');
+  if(grupo) limpiarErroresCrear(grupo);
+});
+formularioCrear.addEventListener('click', e => {
+  const grupo = e.target.closest('.form-group');
+  if(grupo && (e.target.closest('.tipo-btn') || e.target.closest('.cancha-item'))){
+    limpiarErroresCrear(grupo);
+    document.getElementById('jugadores').max = {'5':10,'7':14,'11':22}[state.tipoSel] || 22;
+  }
+});
+
+window.crearPartido = async () => {
+  if(creandoPartido) return;
+  if(!state.usuario?.uid || !state.perfil){ window.mostrarAviso('Iniciá sesión para crear un partido.'); return; }
+  limpiarErroresCrear();
+  const datos = {
+    tipo:state.tipoSel, cancha:state.canchaSeleccionada, duracion:state.durSel,
+    fecha:document.getElementById('fecha').value,
+    hora:document.getElementById('hora').value,
+    jugadores:document.getElementById('jugadores').value,
+    precio:document.getElementById('precio').value
+  };
+  const validacion = validarNuevoPartido(datos);
+  const errores = Object.entries(validacion.errores);
+  if(errores.length){
+    for(const [id, mensaje] of errores){
+      const campo = document.getElementById(id);
+      const aviso = document.createElement('p');
+      aviso.id = 'error-crear-' + id;
+      aviso.className = 'error-crear';
+      aviso.textContent = mensaje;
+      campo.classList.add('campo-error');
+      campo.setAttribute('aria-invalid','true');
+      campo.setAttribute('aria-describedby',aviso.id);
+      campo.after(aviso);
+    }
+    const primero = document.getElementById(errores[0][0]);
+    primero.scrollIntoView({block:'center',behavior:'smooth'});
+    (primero.matches('input') ? primero : primero.querySelector('button'))?.focus({preventScroll:true});
+    window.mostrarAviso('Revisá los campos marcados.');
+    return;
+  }
+  const uid = state.usuario.uid;
+  const nombre = state.perfil.nombre;
+  const boton = document.getElementById('btnCrearPartido');
+  const controles = [...formularioCrear.querySelectorAll('input, button')].map(el => [el, el.disabled]);
+  creandoPartido = true;
+  controles.forEach(([el]) => { el.disabled = true; });
+  boton.textContent = 'Creando…';
+  formularioCrear.setAttribute('aria-busy','true');
+  try {
+    await addDoc(collection(db,'partidos'), {
+      cancha:datos.cancha.nombre, canchaId:datos.cancha.id, canchaFoto:datos.cancha.foto,
+      canchaDireccion:datos.cancha.direccion, canchaLat:datos.cancha.lat,
+      canchaLng:datos.cancha.lng, canchaZona:datos.cancha.zona,
+      hora:datos.hora, fecha:datos.fecha, tipo:datos.tipo, duracion:datos.duracion,
+      inicioTimestamp:validacion.inicio,
+      finTimestamp:validacion.inicio + validacion.minutos * 60000,
+      jugadores:validacion.cantidad, max:validacion.max, precio:validacion.precio,
+      creador:nombre, creadorUid:uid,
+      solicitudes:[], confirmados:[{nombre,uid}], mensajes:[],
+      estado:'activo', creadoEn:serverTimestamp()
+    });
+  } catch(e) {
+    window.mostrarAviso('No se pudo crear el partido. Tus datos siguen acá; intentá de nuevo.', 'error');
+    return;
+  } finally {
+    creandoPartido = false;
+    controles.forEach(([el, disabled]) => { el.disabled = disabled; });
+    boton.textContent = 'CREAR PARTIDO';
+    formularioCrear.removeAttribute('aria-busy');
+  }
+  if(state.usuario?.uid === uid){
+    state.canchaSeleccionada = null;
+    irHome();
+    window.mostrarAviso('Partido creado.', 'success');
+  }
 };
 
 // ---- MIS PARTIDOS ----
