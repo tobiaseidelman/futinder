@@ -1,4 +1,4 @@
-import './navigation.js';
+import { fechaPartido } from './navigation.js';
 import { state } from './state.js';
 import { runTransaction, getDoc, query, collection, db, orderBy, onSnapshot, updateDoc, doc, addDoc, serverTimestamp, increment, arrayUnion, deleteDoc } from './firebase.js';
 import { pedirUbicacion } from './location.js';
@@ -238,7 +238,7 @@ function solicitudesPendientesHTML(){
   return '<section aria-label="Solicitudes enviadas"><p class="section-title">Solicitudes enviadas · ' + pendientes.length + '</p>' +
     pendientes.map(p => `<div class="partido-item" role="button" tabindex="0" data-partido-id="${escaparJugador(p.id)}" onclick="abrirSolicitudPendiente(this.dataset.partidoId)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirSolicitudPendiente(this.dataset.partidoId);}">
       <div class="partido-item-title">${escaparJugador(p.cancha)}</div>
-      <div class="partido-item-sub">${escaparJugador(p.fecha || '')} · ${escaparJugador(p.hora || '')} · Fútbol ${escaparJugador(p.tipo)}</div>
+      <div class="partido-item-sub">${escaparJugador(fechaPartido(p.fecha))} · ${escaparJugador(p.hora || '')} · Fútbol ${escaparJugador(p.tipo)}</div>
       <div class="partido-item-sub" style="margin-top:6px;">Esperando que el creador te acepte</div>
       <div class="partido-item-sub" style="margin-top:10px;color:var(--green);">Ver partido ›</div>
 
@@ -294,7 +294,7 @@ function renderTabPartidos(){
       let ri = state.partidos.indexOf(p);
       let pend = (p.solicitudes||[]).length;
       let estado = getEstadoPartido(p);
-      let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
+      let fechaStr = p.fecha ? `📅 ${fechaPartido(p.fecha)} · ` : '';
       html += `<div class="partido-item" onclick="verDetalle(${ri})">
         <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}${estado==='activo'&&pend>0?`<span class="solicitudes-badge">${pend}</span>`:''}</div>
         <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
@@ -311,7 +311,7 @@ function renderTabPartidos(){
     conf.forEach(p => {
       let ri = state.partidos.indexOf(p);
       let estado = getEstadoPartido(p);
-      let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
+      let fechaStr = p.fecha ? `📅 ${fechaPartido(p.fecha)} · ` : '';
       html += `<div class="partido-item" onclick="verInfoPartido(${ri})">
         <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}</div>
         <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
@@ -333,7 +333,7 @@ function renderTabPartidos(){
     fin.forEach(p => {
       let ri = state.partidos.indexOf(p);
       let esCreador = p.creadorUid === state.usuario.uid;
-      let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
+      let fechaStr = p.fecha ? `📅 ${fechaPartido(p.fecha)} · ` : '';
       let eliminarFn = esCreador ? `eliminarDeCreados('${p.id}')` : `eliminarDeConfirmados('${p.id}')`;
       let verFn = esCreador ? `verDetalle(${ri})` : `verInfoPartido(${ri})`;
       html += `<div class="partido-item" style="position:relative;" onclick="${verFn}">
@@ -550,7 +550,7 @@ window.verInfoPartido = (i) => {
   document.getElementById("infoPartidoTitle").textContent = p.cancha;
 
   let estado = getEstadoPartido(p);
-  let fechaStr = p.fecha || 'Sin fecha';
+  let fechaStr = fechaPartido(p.fecha);
   let confirmados = p.confirmados || [];
   let fill = Math.round((p.jugadores / p.max) * 100);
 
