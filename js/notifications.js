@@ -31,7 +31,7 @@ window.verNotificaciones = () => {
           <div class="notif-dot ${n.visto?'visto':''}"></div>
           <div>
             <div class="notif-text">${n.texto}</div>
-            <div class="notif-sub">${n.tipo==='reprogramado'?'Confirmá el nuevo horario':n.tipo==='respuesta_horario'?'Respuesta al nuevo horario':n.tipo==='solicitud_reprogramada'?'Cambió el horario':n.tipo==='solicitud'?'Solicitud de partido':n.tipo==='cancelado'?'Partido cancelado':n.tipo==='bajada'?'Jugador se bajó':n.tipo==='calificar'?'Calificá a tus compañeros':'Aceptado en partido'}</div>
+            <div class="notif-sub">${n.tipo==='solicitud_vencida'?'Solicitud vencida':n.tipo==='reprogramado'?'Confirmá el nuevo horario':n.tipo==='respuesta_horario'?'Respuesta al nuevo horario':n.tipo==='solicitud_reprogramada'?'Cambió el horario':n.tipo==='solicitud'?'Solicitud de partido':n.tipo==='cancelado'?'Partido cancelado':n.tipo==='bajada'?'Jugador se bajó':n.tipo==='calificar'?'Calificá a tus compañeros':'Aceptado en partido'}</div>
           </div>
         </div>`).join('');
   document.getElementById("listaNotificaciones").innerHTML = html;
@@ -43,6 +43,9 @@ window.abrirNotificacion = async (notifId) => {
   if(!n) return;
   // Marcar como visto en Firebase
   await updateDoc(doc(db, "usuarios", state.usuario.uid, "notificaciones", notifId), { visto: true });
+  if(n.tipo === 'solicitud_vencida'){
+    verMisPartidos(); window.switchTab('pendientes'); return;
+  }
   let pi = state.partidos.findIndex(p => p.id === n.partidoId);
   if(pi >= 0){
     state.idx = pi;
