@@ -329,7 +329,14 @@
   <div class="topbar">
     <button class="back-btn" onclick="irHome()">←</button>
     <div class="topbar-title">Notificaciones</div>
-    <button class="icon-btn" onclick="limpiarNotificaciones()">🗑️</button>
+    <button class="notif-clear" onclick="limpiarNotificaciones()" aria-label="Borrar todas las notificaciones">Limpiar</button>
+  </div>
+  <div class="notif-toolbar">
+    <p id="notifResumen" role="status">Tus novedades de Futinder</p>
+    <div class="notif-filters" role="group" aria-label="Filtrar notificaciones">
+      <button type="button" id="notifTodas" aria-pressed="true" onclick="filtrarNotificaciones(false)">Todas</button>
+      <button type="button" id="notifNoLeidas" aria-pressed="false" onclick="filtrarNotificaciones(true)">Sin leer <span id="notifCantidad">0</span></button>
+    </div>
   </div>
   <div class="notif-list" id="listaNotificaciones"></div>
 </div>
