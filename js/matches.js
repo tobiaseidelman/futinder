@@ -19,7 +19,71 @@ function iniciarPartidos(){
       if(document.getElementById('infoPartido').classList.contains('active')) verInfoPartido(abiertoIdx);
     }
     chequearPartidosFinalizados();
+    revisarVencimientos();
   });
+}
+
+
+let vencimientosTimer;
+let estadosTemporales = '';
+const vencimientosEnCurso = new Set();
+
+async function vencerSolicitudes(partidoId){
+  if(vencimientosEnCurso.has(partidoId) || !state.usuario) return;
+  vencimientosEnCurso.add(partidoId);
+  try {
+    await runTransaction(db, async tx => {
+      const ref = doc(db,'partidos',partidoId), snap = await tx.get(ref);
+      if(!snap.exists()) return;
+      const p = snap.data();
+      if(getEstadoPartido(p) === 'activo' || !(p.solicitudes || []).length) return;
+      const receptores = new Set((p.solicitudes || []).map(s=>s.uid).filter(Boolean));
+      tx.update(ref,{solicitudes:[]});
+      for(const uid of receptores){
+        tx.set(doc(db,'usuarios',uid,'notificaciones',partidoId+'_solicitud_vencida_'+(Number(p.versionHorario)||0)),{
+          tipo:'solicitud_vencida',
+          texto:'Tu solicitud para '+p.cancha+' se canceló automáticamente porque el partido ya empezó y no había sido aceptada.',
+          partidoId,visto:false,creadoEn:serverTimestamp()
+        });
+      }
+    });
+  } catch(e) {
+    console.warn('No se pudo actualizar una solicitud vencida; se reintentará.', e.code || '');
+  } finally { vencimientosEnCurso.delete(partidoId); }
+}
+
+function revisarVencimientos(){
+  clearTimeout(vencimientosTimer);
+  if(!state.usuario) return;
+  const firma = state.partidos.map(p=>p.id+':'+getEstadoPartido(p)).join('|');
+  if(firma !== estadosTemporales){
+    estadosTemporales = firma;
+    const i = state.idx;
+    if(document.getElementById('home').classList.contains('active')) render();
+    else if(document.getElementById('misPartidos').classList.contains('active')) renderTabPartidos();
+    else if(state.partidos[i]){
+      if(document.getElementById('creador').classList.contains('active')) verDetalle(i);
+      if(document.getElementById('infoPartido').classList.contains('active')) verInfoPartido(i);
+    }
+  }
+  for(const p of state.partidos){
+    if(getEstadoPartido(p) !== 'activo' && (p.solicitudes || []).length) void vencerSolicitudes(p.id);
+  }
+  const ahora = Date.now();
+  const futuros = state.partidos.flatMap(p => [inicioPartido(p), finPartido(p)]).filter(t=>Number.isFinite(t) && t>ahora);
+  const demora = futuros.length ? Math.min(60000,Math.max(50,Math.min(...futuros)-ahora+30)) : 60000;
+  vencimientosTimer = setTimeout(revisarVencimientos,demora);
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) revisarVencimientos(); });
+window.addEventListener('focus',revisarVencimientos);
+
+function inicioPartido(p){
+  const timestamp = Number(p.inicioTimestamp);
+  return timestamp > 0 ? timestamp : new Date(p.fecha+'T'+p.hora+':00-03:00').getTime();
+}
+function finPartido(p){
+  const timestamp = Number(p.finTimestamp);
+  return timestamp > 0 ? timestamp : inicioPartido(p) + (({'1h':60,'1:30h':90,'2h':120})[p.duracion] || 90)*60000;
 }
 
 // ---- DETECTAR PARTIDOS RECIÉN FINALIZADOS: notificar a confirmados y sumar partido jugado ----
@@ -302,10 +366,9 @@ function getConfirmadoItemHTML(c, p, estado){
 }
 
 function getEstadoPartido(p){
-  let ahora = Date.now();
-  if(!p.inicioTimestamp) return 'activo';
-  if(ahora >= p.finTimestamp) return 'finalizado';
-  if(ahora >= p.inicioTimestamp) return 'en curso';
+  const ahora = Date.now();
+  if(ahora >= finPartido(p)) return 'finalizado';
+  if(ahora >= inicioPartido(p)) return 'en curso';
   return 'activo';
 }
 
@@ -586,19 +649,20 @@ window.verDetalle = (i) => {
   let p = state.partidos[i];
   document.getElementById("creadorTitle").textContent = p.cancha;
   let estadoCreador = getEstadoPartido(p);
+  const solicitudesVigentes = estadoCreador === 'activo' ? (p.solicitudes || []) : [];
   const tituloConfirmados = document.getElementById('tituloConfirmados');
   const tituloSolicitudes = document.getElementById('tituloSolicitudes');
   if(tituloConfirmados) tituloConfirmados.textContent = 'Jugadores · ' + p.jugadores + '/' + p.max;
-  if(tituloSolicitudes) tituloSolicitudes.textContent = 'Solicitudes · ' + (p.solicitudes||[]).length;
+  if(tituloSolicitudes) tituloSolicitudes.textContent = 'Solicitudes · ' + solicitudesVigentes.length;
   let htmlConf = (p.confirmados||[]).length === 0
     ? `<div style="padding:0 20px;color:var(--text-muted);font-size:14px;">Nadie confirmado todavía</div>`
     : (p.confirmados||[]).map(c => getConfirmadoItemHTML(c, p, estadoCreador)).join('');
   document.getElementById("listaConfirmados").innerHTML = htmlConf + grupoDelCreadorHTML(p);
   document.getElementById("btnCancelarPartido").style.display = estadoCreador === 'finalizado' ? 'none' : 'block';
 
-  let htmlSol = (p.solicitudes||[]).length === 0
+  let htmlSol = solicitudesVigentes.length === 0
     ? `<div style="padding:0 20px;color:var(--text-muted);font-size:14px;">Sin solicitudes</div>`
-    : (p.solicitudes||[]).map((s,si) => `
+    : solicitudesVigentes.map((s,si) => `
       <div class="solicitud-card">
         <div class="solicitud-header" data-uid="${escaparJugador(s.uid || '')}" data-nombre="${escaparJugador(s.nombre)}" onclick="abrirPerfilSolicitud(this)">
           ${avatarJugadorHTML(s.uid, s.nombre)}
@@ -634,6 +698,7 @@ window.aceptar = async (i) => {
       const snap = await tx.get(partidoRef);
       if(!snap.exists()) throw new Error("Este partido ya no está disponible.");
       const actual = snap.data();
+      if(getEstadoPartido(actual) !== 'activo') throw new Error('El partido ya empezó. La solicitud venció.');
       const confirmados = actual.confirmados || [];
       if(confirmados.some(c => uidDeConfirmado(c) === jugadorUid || (typeof c === 'string' && c === solicitud.nombre))){
         throw new Error("Este jugador ya está confirmado.");
@@ -676,11 +741,17 @@ window.aceptar = async (i) => {
 };
 
 window.rechazar = async (i) => {
-  let p = state.partidos[state.idx];
-  let nuevasSol = [...p.solicitudes];
-  nuevasSol.splice(i, 1);
-  await updateDoc(doc(db,"partidos",p.id), { solicitudes: nuevasSol });
-  verDetalle(state.idx);
+  const p = state.partidos[state.idx], solicitud = p?.solicitudes?.[i];
+  if(!p || !solicitud) return;
+  try {
+    await runTransaction(db, async tx => {
+      const ref = doc(db,'partidos',p.id), snap = await tx.get(ref);
+      if(!snap.exists()) return;
+      const actual = snap.data();
+      if(getEstadoPartido(actual) !== 'activo') throw new Error('El partido ya empezó. La solicitud venció.');
+      tx.update(ref,{solicitudes:(actual.solicitudes||[]).filter(s=>solicitud.uid ? s.uid!==solicitud.uid : s.nombre!==solicitud.nombre)});
+    });
+  } catch(e){ window.mostrarAviso(e.message || 'No se pudo rechazar la solicitud.', 'error'); }
 };
 
 let motivoCancelacionElegido = null;
