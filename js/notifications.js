@@ -36,23 +36,60 @@ function etiquetaNotificacion(n){
   if(n.tipo==='solicitud' && p && n.solicitanteUid && !(p.solicitudes||[]).some(s=>s.uid===n.solicitanteUid)) return 'Solicitud resuelta';
   return etiquetas[n.tipo] || 'Aviso';
 }
+
+let soloNoLeidas = false;
+window.filtrarNotificaciones = valor => {soloNoLeidas=valor;renderNotificaciones();};
+function fechaNotificacion(n){
+  const ms = typeof n.creadoEn?.toMillis === 'function' ? n.creadoEn.toMillis() : Number(n.creadoEn?.seconds)*1000;
+  return Number.isFinite(ms) ? ms : null;
+}
+function tiempoNotificacion(ms){
+  if(ms === null) return '';
+  const minutos=Math.max(0,Math.floor((Date.now()-ms)/60000));
+  if(minutos<1) return 'Ahora';
+  if(minutos<60) return 'Hace '+minutos+' min';
+  if(minutos<1440) return 'Hace '+Math.floor(minutos/60)+' h';
+  return new Intl.DateTimeFormat('es-UY',{timeZone:'America/Montevideo',day:'numeric',month:'short'}).format(ms);
+}
 function renderNotificaciones(){
   const lista = document.getElementById('listaNotificaciones');
   lista.replaceChildren();
-  if(!state.notificaciones.length){
-    const vacio=document.createElement('div');vacio.className='empty';
-    vacio.textContent='No tenés notificaciones.';lista.append(vacio);return;
+  const sinLeer=state.notificaciones.filter(n=>!n.visto).length;
+  document.getElementById('notifResumen').textContent=sinLeer ? 'Tenés '+sinLeer+' '+(sinLeer===1?'novedad sin leer':'novedades sin leer') : 'Estás al día';
+  document.getElementById('notifCantidad').textContent=sinLeer;
+  document.getElementById('notifTodas').setAttribute('aria-pressed',String(!soloNoLeidas));
+  document.getElementById('notifNoLeidas').setAttribute('aria-pressed',String(soloNoLeidas));
+  const visibles=state.notificaciones.filter(n=>!soloNoLeidas||!n.visto);
+  if(!visibles.length){
+    const vacio=document.createElement('div');vacio.className='notif-empty';
+    const icon=document.createElement('span');icon.className='notif-empty-icon';icon.textContent='✓';icon.setAttribute('aria-hidden','true');
+    const titulo=document.createElement('h2');titulo.textContent=soloNoLeidas?'Todo leído':'Todo tranquilo por acá';
+    const texto=document.createElement('p');texto.textContent=soloNoLeidas?'No te queda ninguna novedad por revisar.':'Las solicitudes y novedades de tus partidos aparecerán acá.';
+    vacio.append(icon,titulo,texto);lista.append(vacio);return;
   }
-  for(const n of state.notificaciones){
-    const fila=document.createElement('div');fila.className='notif-item';fila.tabIndex=0;fila.setAttribute('role','button');
+  const dia=ms=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Montevideo',year:'numeric',month:'2-digit',day:'2-digit'}).format(ms);
+  const hoy=dia(Date.now()),ayer=dia(Date.now()-86400000);
+  let grupoAnterior='';
+  for(const n of visibles){
+    const ms=fechaNotificacion(n);
+    const grupo=ms===null?'Novedades':dia(ms)===hoy?'Hoy':dia(ms)===ayer?'Ayer':'Anteriores';
+    if(grupo!==grupoAnterior){
+      const heading=document.createElement('h2');heading.className='notif-group';heading.textContent=grupo;lista.append(heading);grupoAnterior=grupo;
+    }
+    const fila=document.createElement('button');fila.type='button';fila.className='notif-card'+(n.visto?'':' is-unread');
     fila.setAttribute('aria-label',(n.visto?'Leída. ':'Sin leer. ')+String(n.texto||'Aviso'));
     fila.onclick=()=>window.abrirNotificacion(n.id);
-    fila.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();window.abrirNotificacion(n.id);}};
-    const punto=document.createElement('div');punto.className='notif-dot'+(n.visto?' visto':'');punto.setAttribute('aria-hidden','true');
-    const contenido=document.createElement('div');
-    const texto=document.createElement('div');texto.className='notif-text';texto.textContent=n.texto||'Aviso';texto.style.fontWeight=n.visto?'400':'600';
-    const sub=document.createElement('div');sub.className='notif-sub';sub.textContent=etiquetaNotificacion(n)+' · '+(n.visto?'Leída':'Sin leer');
-    contenido.append(texto,sub);fila.append(punto,contenido);lista.append(fila);
+    const icon=document.createElement('span');icon.className='notif-symbol';icon.setAttribute('aria-hidden','true');
+    icon.textContent=({solicitud:'＋',aceptado:'✓',rechazado:'−',cancelado:'×',bajada:'↘',calificar:'☆',tag_malo:'☆',solicitud_vencida:'◷',solicitud_reprogramada:'↻',respuesta_horario:'✓',reprogramado:'↻'})[n.tipo]||'•';
+    const contenido=document.createElement('span');contenido.className='notif-content';
+    const cabecera=document.createElement('span');cabecera.className='notif-card-header';
+    const titulo=document.createElement('span');titulo.className='notif-card-title';titulo.textContent=etiquetaNotificacion(n);
+    cabecera.append(titulo);
+    if(!n.visto){const punto=document.createElement('span');punto.className='notif-unread-dot';punto.setAttribute('aria-hidden','true');cabecera.append(punto);}
+    const texto=document.createElement('span');texto.className='notif-card-text';texto.textContent=n.texto||'Aviso';
+    const tiempo=document.createElement('span');tiempo.className='notif-card-time';tiempo.textContent=tiempoNotificacion(ms);
+    contenido.append(cabecera,texto,tiempo);
+    fila.append(icon,contenido);lista.append(fila);
   }
 }
 window.verNotificaciones=()=>{renderNotificaciones();cambiarPantalla('notificaciones');};
