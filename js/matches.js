@@ -104,8 +104,8 @@ function validarNuevoPartido({tipo, cancha, fecha, hora, jugadores, precio, dura
     errores[fecha < hoy ? 'fecha' : 'hora'] = 'El partido tiene que empezar en una fecha y hora futuras.';
   }
   const cantidad = Number(jugadores);
-  if(!jugadores.trim() || !Number.isInteger(cantidad) || cantidad < 1 || cantidad > (max || 22)){
-    errores.jugadores = 'Ingresá entre 1 y ' + (max || 22) + ' jugadores, incluyéndote.';
+  if(!jugadores.trim() || !Number.isInteger(cantidad) || cantidad < 1 || cantidad >= (max || 22)){
+    errores.jugadores = 'Ingresá entre 1 y ' + ((max || 22) - 1) + ' jugadores, incluyéndote. Tiene que quedar al menos un lugar libre.';
   }
   if(precio.trim() && (!Number.isFinite(Number(precio)) || Number(precio) < 0)){
     errores.precio = 'Ingresá un precio igual o mayor a 0.';
@@ -122,7 +122,7 @@ formularioCrear.addEventListener('click', e => {
   const grupo = e.target.closest('.form-group');
   if(grupo && (e.target.closest('.tipo-btn') || e.target.closest('.cancha-item'))){
     limpiarErroresCrear(grupo);
-    document.getElementById('jugadores').max = {'5':10,'7':14,'11':22}[state.tipoSel] || 22;
+    document.getElementById('jugadores').max = {'5':9,'7':13,'11':21}[state.tipoSel] || 21;
   }
 });
 
@@ -462,6 +462,16 @@ window.verMisPartidos = () => {
   cambiarPantalla("misPartidos");
 };
 
+
+function grupoDelCreadorHTML(p){
+  const cantidad = Math.max(0, (Number(p.jugadores) || 0) - (p.confirmados || []).length);
+  if(!cantidad) return '';
+  return '<div style="padding:14px 20px;border-top:1px solid #282828;">' +
+    '<div style="font-size:14px;color:var(--text);">' + cantidad +
+    (cantidad === 1 ? ' jugador del grupo del creador' : ' jugadores del grupo del creador') +
+    '</div><div style="margin-top:4px;font-size:12px;line-height:1.4;color:var(--text-muted);">Ya incluidos en el total del partido.</div></div>';
+}
+
 window.verDetalle = (i) => {
   state.idx = i;
   let p = state.partidos[i];
@@ -469,12 +479,12 @@ window.verDetalle = (i) => {
   let estadoCreador = getEstadoPartido(p);
   const tituloConfirmados = document.getElementById('tituloConfirmados');
   const tituloSolicitudes = document.getElementById('tituloSolicitudes');
-  if(tituloConfirmados) tituloConfirmados.textContent = 'Confirmados · ' + (p.confirmados||[]).length + '/' + p.max;
+  if(tituloConfirmados) tituloConfirmados.textContent = 'Jugadores · ' + p.jugadores + '/' + p.max;
   if(tituloSolicitudes) tituloSolicitudes.textContent = 'Solicitudes · ' + (p.solicitudes||[]).length;
   let htmlConf = (p.confirmados||[]).length === 0
     ? `<div style="padding:0 20px;color:var(--text-muted);font-size:14px;">Nadie confirmado todavía</div>`
     : (p.confirmados||[]).map(c => getConfirmadoItemHTML(c, p, estadoCreador)).join('');
-  document.getElementById("listaConfirmados").innerHTML = htmlConf;
+  document.getElementById("listaConfirmados").innerHTML = htmlConf + grupoDelCreadorHTML(p);
   document.getElementById("btnCancelarPartido").style.display = estadoCreador === 'finalizado' ? 'none' : 'block';
 
   let htmlSol = (p.solicitudes||[]).length === 0
@@ -675,7 +685,7 @@ window.verInfoPartido = (i) => {
       </div>
 
       <p class="section-title">Jugadores confirmados</p>
-      <div class="confirmados-list" style="margin-bottom:20px;">${htmlConf}</div>
+      <div class="confirmados-list" style="margin-bottom:20px;">${htmlConf}${grupoDelCreadorHTML(p)}</div>
 
       <button onclick="abrirChatIdx(${i})" style="width:100%;padding:14px;background:#001a00;color:var(--green);border:1px solid var(--green);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;">
         💬 Ir al chat
