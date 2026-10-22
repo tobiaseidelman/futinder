@@ -465,12 +465,114 @@ window.verMisPartidos = () => {
 
 function grupoDelCreadorHTML(p){
   const cantidad = Math.max(0, (Number(p.jugadores) || 0) - (p.confirmados || []).length);
-  if(!cantidad) return '';
+  const editable = p.creadorUid === state.usuario?.uid && getEstadoPartido(p) === 'activo';
+  if(!cantidad && !editable) return '';
+  const editar = editable ? '<button type="button" class="submit-btn" style="margin-top:12px;font-size:14px;" data-partido-id="' + escaparJugador(p.id) + '" onclick="editarGrupoPartido(this.dataset.partidoId)">Cambiar cuántos vienen conmigo</button>' : '';
   return '<div style="padding:14px 20px;border-top:1px solid #282828;">' +
     '<div style="font-size:14px;color:var(--text);">' + cantidad +
     (cantidad === 1 ? ' jugador del grupo del creador' : ' jugadores del grupo del creador') +
-    '</div><div style="margin-top:4px;font-size:12px;line-height:1.4;color:var(--text-muted);">Ya incluidos en el total del partido.</div></div>';
+    '</div><div style="margin-top:4px;font-size:12px;line-height:1.4;color:var(--text-muted);">Ya incluidos en el total del partido.</div>' + editar + '</div>';
 }
+
+
+function totalConGrupo(p, cantidad, uid){
+  if(p.creadorUid !== uid) throw new Error('Solo el creador puede cambiar su grupo.');
+  if(getEstadoPartido(p) !== 'activo') throw new Error('El partido ya empezó o terminó.');
+  const confirmados = (p.confirmados || []).length;
+  const max = Number(p.max);
+  if(!Number.isInteger(max) || max < 1 || confirmados < 1) throw new Error('No se pudieron verificar los cupos.');
+  const disponibles = Math.max(0, max - confirmados);
+  if(!Number.isInteger(cantidad) || cantidad < 0 || cantidad > disponibles){
+    throw new Error('Podés llevar entre 0 y ' + disponibles + ' personas más. Los jugadores aceptados conservan su lugar.');
+  }
+  return confirmados + cantidad;
+}
+
+let editorGrupoAbierto = false;
+window.editarGrupoPartido = partidoId => {
+  if(editorGrupoAbierto) return;
+  const p = state.partidos.find(p => p.id === partidoId);
+  const uid = state.usuario?.uid;
+  if(!p || !uid || p.creadorUid !== uid || getEstadoPartido(p) !== 'activo') return;
+  editorGrupoAbierto = true;
+  const cantidadInicial = Math.max(0, Number(p.jugadores) - (p.confirmados || []).length);
+  const origen = document.activeElement;
+  const dialogo = document.createElement('dialog');
+  dialogo.className = 'editor-grupo';
+  dialogo.setAttribute('aria-labelledby','titulo-editor-grupo');
+  dialogo.innerHTML = '<h2 id="titulo-editor-grupo">¿Cuántos vienen con vos?</h2>' +
+    '<p id="ayuda-editor-grupo">Sin contarte a vos ni a los jugadores aceptados en Futinder.</p>' +
+    '<label class="form-label" for="cantidad-editor-grupo">Personas que traés</label>' +
+    '<input class="form-input" id="cantidad-editor-grupo" type="number" min="0" step="1" inputmode="numeric" aria-describedby="ayuda-editor-grupo error-editor-grupo">' +
+    '<p id="error-editor-grupo" role="alert" style="color:var(--red,#ff4d4d)"></p>' +
+    '<button type="button" class="submit-btn" data-guardar>Guardar cambios</button>' +
+    '<button type="button" class="submit-btn" data-volver style="margin-top:10px;background:#252525;color:#eee;">Volver</button>';
+  const input = dialogo.querySelector('input');
+  const guardar = dialogo.querySelector('[data-guardar]');
+  const volver = dialogo.querySelector('[data-volver]');
+  const error = dialogo.querySelector('[role="alert"]');
+  input.value = cantidadInicial;
+  input.max = Math.max(0, Number(p.max) - (p.confirmados || []).length);
+  let guardando = false;
+  let cerrado = false;
+  const overflow = document.body.style.overflow;
+  const cerrar = () => {
+    if(guardando || cerrado) return;
+    cerrado = true;
+    dialogo.close();
+    dialogo.remove();
+    document.body.style.overflow = overflow;
+    editorGrupoAbierto = false;
+    if(origen?.isConnected) origen.focus({preventScroll:true});
+  };
+  volver.addEventListener('click', cerrar);
+  dialogo.addEventListener('cancel', e => { e.preventDefault(); cerrar(); });
+  dialogo.addEventListener('close', cerrar);
+  guardar.addEventListener('click', async () => {
+    if(guardando) return;
+    const cantidad = input.value.trim() === '' ? NaN : Number(input.value);
+    error.textContent = '';
+    input.removeAttribute('aria-invalid');
+    guardando = true;
+    guardar.disabled = volver.disabled = input.disabled = true;
+    guardar.textContent = 'Guardando…';
+    let resultado;
+    try {
+      resultado = await runTransaction(db, async tx => {
+        if(state.usuario?.uid !== uid) throw new Error('La sesión cambió. Volvé a ingresar.');
+        const ref = doc(db,'partidos',partidoId);
+        const snap = await tx.get(ref);
+        if(!snap.exists()) throw new Error('El partido ya no está disponible.');
+        const actual = snap.data();
+        const jugadores = totalConGrupo(actual, cantidad, uid);
+        const grupoActual = Number(actual.jugadores) - (actual.confirmados || []).length;
+        if(grupoActual !== cantidadInicial) throw new Error('El grupo cambió desde que abriste esta ventana. Volvé y abrila de nuevo.');
+        tx.update(ref, {jugadores});
+        return {...actual, jugadores, id:partidoId};
+      });
+    } catch(e) {
+      error.textContent = e.message || 'No se pudo guardar. Intentá de nuevo.';
+      input.setAttribute('aria-invalid','true');
+    } finally {
+      guardando = false;
+      guardar.disabled = volver.disabled = input.disabled = false;
+      guardar.textContent = 'Guardar cambios';
+    }
+    if(!resultado) return;
+    cerrar();
+    if(state.usuario?.uid !== uid) return;
+    const i = state.partidos.findIndex(p => p.id === partidoId);
+    if(i !== -1){
+      state.partidos[i] = resultado;
+      if(document.getElementById('creador').classList.contains('active')) verDetalle(i);
+    }
+    window.mostrarAviso('Actualizamos tu grupo y los lugares disponibles.', 'success');
+  });
+  document.body.append(dialogo);
+  document.body.style.overflow = 'hidden';
+  dialogo.showModal();
+  volver.focus({preventScroll:true});
+};
 
 window.verDetalle = (i) => {
   state.idx = i;
