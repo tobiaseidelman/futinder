@@ -69,6 +69,7 @@ function revisarVencimientos(){
   for(const p of state.partidos){
     if(getEstadoPartido(p) !== 'activo' && (p.solicitudes || []).length) void vencerSolicitudes(p.id);
   }
+  void chequearPartidosFinalizados();
   const ahora = Date.now();
   const futuros = state.partidos.flatMap(p => [inicioPartido(p), finPartido(p)]).filter(t=>Number.isFinite(t) && t>ahora);
   const demora = futuros.length ? Math.min(60000,Math.max(50,Math.min(...futuros)-ahora+30)) : 60000;
@@ -90,30 +91,31 @@ function finPartido(p){
 // No hay backend corriendo solo (plan gratis de Firebase), así que esto se dispara
 // cuando cualquier usuario con la app abierta detecta un partido recién finalizado.
 // Se marca notifRatingEnviada:true para no mandar la notificación más de una vez.
+const finalesEnCurso = new Set();
 async function chequearPartidosFinalizados(){
-  for(let p of state.partidos){
-    if(getEstadoPartido(p) !== 'finalizado') continue;
-    if(p.notifRatingEnviada) continue;
-    if(!(p.confirmados||[]).length) continue;
-
-    try{
-      await updateDoc(doc(db, "partidos", p.id), { notifRatingEnviada: true });
-    }catch(e){ continue; } // otro cliente ya lo está procesando
-
-    for(let c of p.confirmados){
-      let uid = uidDeConfirmado(c);
-      if(!uid || c.pendienteReconfirmar) continue; // No contar a quien no reconfirmó.
-      try{
-        await addDoc(collection(db, "usuarios", uid, "notificaciones"), {
-          tipo: "calificar",
-          texto: `El partido en ${p.cancha} terminó. ¡Calificá a tus compañeros!`,
-          partidoId: p.id,
-          visto: false,
-          creadoEn: serverTimestamp()
-        });
-        await updateDoc(doc(db, "usuarios", uid), { partidos: increment(1) });
-      }catch(e){ /* seguir con el resto aunque falle uno */ }
-    }
+  for(const partido of state.partidos){
+    if(getEstadoPartido(partido) !== 'finalizado' || partido.notifRatingEnviada || finalesEnCurso.has(partido.id)) continue;
+    finalesEnCurso.add(partido.id);
+    try {
+      await runTransaction(db, async tx => {
+        const ref = doc(db,'partidos',partido.id), snap = await tx.get(ref);
+        if(!snap.exists()) return;
+        const p = snap.data();
+        if(getEstadoPartido(p) !== 'finalizado' || p.notifRatingEnviada) return;
+        const uids = [...new Set((p.confirmados||[]).filter(c=>!c.pendienteReconfirmar).map(uidDeConfirmado).filter(Boolean))];
+        const perfiles = [];
+        for(const uid of uids) perfiles.push([uid,await tx.get(doc(db,'usuarios',uid))]);
+        tx.update(ref,{notifRatingEnviada:true});
+        for(const [uid,perfil] of perfiles){
+          tx.set(doc(db,'usuarios',uid,'notificaciones',partido.id+'_calificar'),{
+            tipo:'calificar',texto:'El partido en '+p.cancha+' terminó. ¡Calificá a tus compañeros!',
+            partidoId:partido.id,visto:false,creadoEn:serverTimestamp()
+          });
+          if(perfil.exists()) tx.update(doc(db,'usuarios',uid),{partidos:increment(1)});
+        }
+      });
+    } catch(e){ console.warn('No se pudo procesar el final del partido.', e.code || ''); }
+    finally { finalesEnCurso.delete(partido.id); }
   }
 }
 
@@ -717,22 +719,16 @@ window.aceptar = async (i) => {
         jugadores: jugadores + 1
       };
       tx.update(partidoRef, cambios);
+      tx.set(doc(db,'usuarios',jugadorUid,'notificaciones',partidoId+'_aceptado_'+(actual.versionHorario||0)),{
+        tipo:'aceptado',texto:'Te aceptaron en '+actual.cancha+'. Mirá los detalles del partido.',
+        partidoId,visto:false,creadoEn:serverTimestamp()
+      });
       return { ...actual, ...cambios, id: partidoId };
     });
     const indice = state.partidos.findIndex(p => p.id === partidoId);
     if(indice !== -1) state.partidos[indice] = resultado;
     if(state.partidos[state.idx]?.id === partidoId) verDetalle(state.idx);
-    try {
-      await addDoc(collection(db, "usuarios", jugadorUid, "notificaciones"), {
-        tipo: "aceptado",
-        texto: `¡Te aceptaron en ${resultado.cancha}! Podés entrar al chat.`,
-        partidoId,
-        visto: false,
-        creadoEn: serverTimestamp()
-      });
-    } catch(e) {
-      window.mostrarAviso("Jugador aceptado, pero no se pudo enviar la notificación.");
-    }
+
   } catch(e) {
     window.mostrarAviso(e.message || "No se pudo aceptar al jugador. Intentá de nuevo.", 'error');
   } finally {
@@ -749,7 +745,13 @@ window.rechazar = async (i) => {
       if(!snap.exists()) return;
       const actual = snap.data();
       if(getEstadoPartido(actual) !== 'activo') throw new Error('El partido ya empezó. La solicitud venció.');
-      tx.update(ref,{solicitudes:(actual.solicitudes||[]).filter(s=>solicitud.uid ? s.uid!==solicitud.uid : s.nombre!==solicitud.nombre)});
+      const coincide = s => solicitud.uid ? s.uid===solicitud.uid : s.nombre===solicitud.nombre;
+      if(!(actual.solicitudes||[]).some(coincide)) return;
+      tx.update(ref,{solicitudes:(actual.solicitudes||[]).filter(s=>!coincide(s))});
+      if(solicitud.uid) tx.set(doc(db,'usuarios',solicitud.uid,'notificaciones',p.id+'_rechazada_'+(actual.versionHorario||0)),{
+        tipo:'rechazado',texto:'Tu solicitud para '+actual.cancha+' no fue aceptada.',
+        partidoId:p.id,visto:false,creadoEn:serverTimestamp()
+      });
     });
   } catch(e){ window.mostrarAviso(e.message || 'No se pudo rechazar la solicitud.', 'error'); }
 };
@@ -792,46 +794,31 @@ window.confirmarCancelacionConMotivo = async () => {
   await cancelarPartido(motivoPartidoId, motivoCompleto);
 };
 
+const cancelacionesEnCurso = new Set();
 window.cancelarPartido = async (partidoId, motivo) => {
-  let p = state.partidos.find(x => x.id === partidoId) || state.partidos[state.idx];
-  if(!p) return;
-  let confirmados = p.confirmados || [];
-  let porAdmin = esAdmin() && p.creadorUid !== state.usuario.uid;
-
-  if(!motivo && !confirm(`¿Cancelar el partido en ${p.cancha}? Se notificará a todos los jugadores confirmados.`)) return;
-
-  let textoMotivo = motivo ? ` Motivo: ${motivo}.` : '';
-  let textoQuien = porAdmin ? 'por un administrador' : 'por el creador';
-
-  // Notificar a cada jugador confirmado
-  for(let c of confirmados){
-    let uid = uidDeConfirmado(c);
-    if(uid && uid !== state.usuario.uid){
-      await addDoc(collection(db, "usuarios", uid, "notificaciones"), {
-        tipo: "cancelado",
-        texto: `El partido en ${p.cancha} (${p.hora}) fue cancelado ${textoQuien}.${textoMotivo}`,
-        partidoId: p.id,
-        visto: false,
-        creadoEn: serverTimestamp()
+  const p = state.partidos.find(x=>x.id===partidoId);
+  const uid = state.usuario?.uid;
+  if(!p || !uid || cancelacionesEnCurso.has(partidoId)) return;
+  const porAdmin = esAdmin() && p.creadorUid !== uid;
+  if(!motivo && !await confirmarAccion({titulo:'¿Cancelar el partido?',mensaje:'Avisaremos a los jugadores y a quienes pidieron unirse.',aceptar:'Cancelar partido'})) return;
+  cancelacionesEnCurso.add(partidoId);
+  try {
+    await runTransaction(db,async tx=>{
+      const ref = doc(db,'partidos',partidoId), snap = await tx.get(ref);
+      if(!snap.exists()) return;
+      const actual = snap.data();
+      if(actual.creadorUid !== uid && !porAdmin) throw new Error('Solo el creador puede cancelar este partido.');
+      const receptores = new Set([...(actual.confirmados||[]).map(uidDeConfirmado),...(actual.solicitudes||[]).map(s=>s.uid),actual.creadorUid].filter(id=>id && id!==uid));
+      for(const receptor of receptores) tx.set(doc(db,'usuarios',receptor,'notificaciones',partidoId+'_cancelado'),{
+        tipo:'cancelado',texto:'El partido en '+actual.cancha+' ('+actual.hora+') fue cancelado.'+(motivo?' Motivo: '+motivo+'.':''),
+        partidoId,visto:false,creadoEn:serverTimestamp()
       });
-    }
-  }
-  // Si cancela el admin y no es el creador, avisarle también al creador
-  if(porAdmin && p.creadorUid && p.creadorUid !== state.usuario.uid){
-    await addDoc(collection(db, "usuarios", p.creadorUid, "notificaciones"), {
-      tipo: "cancelado",
-      texto: `Tu partido en ${p.cancha} (${p.hora}) fue cancelado por un administrador.${textoMotivo}`,
-      partidoId: p.id,
-      visto: false,
-      creadoEn: serverTimestamp()
+      tx.delete(ref);
     });
-  }
-
-  // Borrar el partido
-  await deleteDoc(doc(db, "partidos", p.id));
-  if(porAdmin) verAdminPanel(); else verMisPartidos();
+    if(state.usuario?.uid===uid){if(porAdmin) verAdminPanel(); else verMisPartidos();}
+  } catch(e){window.mostrarAviso(e.message || 'No se pudo cancelar el partido.', 'error');}
+  finally {cancelacionesEnCurso.delete(partidoId);}
 };
-
 
 function esperaReconfirmacion(p, uid = state.usuario?.uid, nombre = state.perfil?.nombre){
   return (p.confirmados || []).some(c => typeof c === 'object' && c.pendienteReconfirmar &&
@@ -958,12 +945,15 @@ window.responderReprogramacion = async (partidoId, version, acepta) => {
       if(p.versionHorario !== version) throw new Error('El horario cambió otra vez. Revisá el nuevo horario antes de responder.');
       if(getEstadoPartido(p) !== 'activo') throw new Error('El partido ya empezó o terminó.');
       if(!esperaReconfirmacion(p,uid,nombre)) return {...p,id:partidoId};
+      const avisoRef = doc(db,'usuarios',uid,'notificaciones',partidoId+'_horario_'+version);
+      const avisoSnap = await tx.get(avisoRef);
       const esYo = c => typeof c === 'object' && (c.uid ? c.uid === uid : c.nombre === nombre);
       const confirmados = acepta
         ? p.confirmados.map(c=>esYo(c)?{...c,pendienteReconfirmar:false}:c)
         : p.confirmados.filter(c=>!esYo(c));
       const cambios = {confirmados,jugadores:acepta?p.jugadores:Math.max(0,Number(p.jugadores)-1)};
       tx.update(ref,cambios);
+      if(avisoSnap.exists()) tx.update(avisoRef,{visto:true});
       tx.set(doc(db,'usuarios',p.creadorUid,'notificaciones',partidoId+'_respuesta_'+version+'_'+uid),{
         tipo:'respuesta_horario',texto:nombre+(acepta?' confirmó el nuevo horario':' no puede venir al nuevo horario y liberó su lugar')+' en '+p.cancha+'.',
         partidoId,visto:false,creadoEn:serverTimestamp()
