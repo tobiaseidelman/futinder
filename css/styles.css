@@ -404,3 +404,33 @@ body.chat-abierto { overflow:hidden; }
 #chat .chat-input { min-width:0; width:0; font-size:16px; line-height:22px; min-height:44px; }
 #chat .send-btn { flex:0 0 44px; width:44px; height:44px; }
 #chat .send-btn:disabled { opacity:.5; }
+
+/* Bandeja de notificaciones, diseñada para celular. */
+#notificaciones .topbar-title{font-size:26px}
+#notificaciones .notif-clear{border:0;background:transparent;color:var(--text-muted);font:500 12px 'DM Sans',sans-serif;min-height:44px;padding:0 4px;cursor:pointer}
+#notificaciones .notif-toolbar{padding:0 20px 16px;flex-shrink:0}
+#notificaciones #notifResumen{margin:0 0 18px;color:var(--text-muted);font-size:13px}
+#notificaciones .notif-filters{display:flex;gap:8px}
+#notificaciones .notif-filters button{display:flex;align-items:center;gap:8px;border:1px solid #2b2b2b;border-radius:24px;padding:10px 16px;min-height:44px;background:#141414;color:#999;font:500 13px 'DM Sans',sans-serif;cursor:pointer}
+#notificaciones .notif-filters button[aria-pressed=true]{background:#172013;border-color:#36502b;color:var(--green)}
+#notificaciones #notifCantidad{border-radius:10px;padding:1px 6px;background:#ffffff0d;font-size:11px}
+#notificaciones .notif-list{padding:0 16px calc(28px + env(safe-area-inset-bottom,0px));min-height:0}
+#notificaciones .notif-group{font:600 11px 'DM Sans',sans-serif;text-transform:uppercase;letter-spacing:1.4px;color:#777;margin:20px 4px 10px}
+#notificaciones .notif-group:first-child{margin-top:4px}
+#notificaciones .notif-card{box-sizing:border-box;width:100%;display:flex;align-items:flex-start;gap:12px;text-align:left;padding:16px;margin-bottom:9px;background:#111;border:1px solid #202020;border-radius:16px;color:var(--text);font-family:'DM Sans',sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#notificaciones .notif-card.is-unread{background:#151a13;border-color:#2c3927}
+#notificaciones .notif-symbol{display:grid;place-items:center;width:34px;height:34px;flex:0 0 34px;border-radius:11px;background:#202020;color:#a0a0a0;font-size:23px;line-height:1}
+#notificaciones .is-unread .notif-symbol{background:#23331c;color:var(--green)}
+#notificaciones .notif-content{display:block;min-width:0;flex:1}
+#notificaciones .notif-card-header{display:flex;align-items:center;gap:10px;justify-content:space-between}
+#notificaciones .notif-card-title{font-size:13px;line-height:1.4;font-weight:600;color:#ddd}
+#notificaciones .notif-unread-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+#notificaciones .notif-card-text{display:block;margin-top:5px;font-size:13px;line-height:1.55;color:#92988f;overflow-wrap:anywhere}
+#notificaciones .is-unread .notif-card-text{color:#b9beb6}
+#notificaciones .notif-card-time{display:block;margin-top:10px;font-size:11px;color:#747b70}
+#notificaciones .notif-card:active{background:#20271b}
+#notificaciones button:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+#notificaciones .notif-empty{padding:65px 20px;text-align:center}
+#notificaciones .notif-empty-icon{display:grid;place-items:center;width:56px;height:56px;margin:auto;border:1px solid #304328;border-radius:20px;background:#172013;color:var(--green);font-size:26px}
+#notificaciones .notif-empty h2{font-size:18px;font-weight:600;margin:20px 0 8px}
+#notificaciones .notif-empty p{font-size:13px;line-height:1.6;color:var(--text-muted);max-width:260px;margin:auto}
