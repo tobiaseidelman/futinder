@@ -11,7 +11,15 @@
 #crear .error-crear{color:var(--red,#ff4d4d);font-size:13px;line-height:1.4;margin:8px 0 0}
 #crear .submit-btn:disabled{opacity:.65;cursor:wait}
 </style>
-</head>
+<style>
+.editor-grupo{box-sizing:border-box;width:calc(100% - 32px);max-width:380px;max-height:85dvh;overflow:auto;margin:auto;padding:24px;border:1px solid #333;border-radius:22px;background:#151515;color:var(--text,#fff);font-family:'DM Sans',sans-serif}
+.editor-grupo::backdrop{background:#000b;backdrop-filter:blur(4px)}
+.editor-grupo h2{font-size:22px;margin:0 0 12px}
+.editor-grupo p{font-size:14px;line-height:1.5;color:var(--text-muted,#aaa)}
+.editor-grupo input{font-size:16px;width:100%;box-sizing:border-box}
+.editor-grupo button{min-height:48px}
+.editor-grupo button:disabled{opacity:.55;cursor:wait}
+</style></head>
 <body>
 
 <!-- LOADING -->
@@ -346,7 +354,7 @@
 
 <!-- MODAL MOTIVO CANCELACIÓN -->
 <div class="modal-overlay" id="modalMotivoCancelacion" onclick="cerrarMotivoCancelacion()">
-  <div class="modal-sheet" onclick="event.stopPropagation()">
+  <div class="modal-sheet" style="max-height:85dvh;overflow-y:auto;" onclick="event.stopPropagation()">
     <div class="modal-handle"></div>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;margin-bottom:4px;">¿POR QUÉ CANCELÁS?</div>
     <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">Se lo vamos a contar a los jugadores confirmados junto con el aviso.</div>
@@ -355,6 +363,7 @@
       <div id="motivosGrid" style="display:flex;flex-direction:column;gap:8px;">
         <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Faltaron jugadores')">👥 Faltaron jugadores</button>
         <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Cambio de planes')">🔄 Cambio de planes</button>
+        <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'No puedo llegar a la hora')">🕓 No puedo llegar a la hora</button>
         <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Problema con la cancha')">🏟️ Problema con la cancha</button>
         <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Mal tiempo')">🌧️ Mal tiempo</button>
         <button class="tipo-btn motivo-btn" style="text-align:left;padding:12px 14px;" onclick="selMotivoCancelacion(this,'Otro motivo')">✏️ Otro motivo</button>
