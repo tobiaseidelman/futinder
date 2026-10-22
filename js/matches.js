@@ -9,9 +9,15 @@ function iniciarPartidos(){
   if(state.partidosUnsub) state.partidosUnsub();
   const q = query(collection(db, "partidos"), orderBy("creadoEn", "desc"));
   state.partidosUnsub = onSnapshot(q, (snap) => {
+    const abiertoId = state.partidos[state.idx]?.id;
     state.partidos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if(document.getElementById("home").classList.contains("active")) render();
     if(document.getElementById("misPartidos").classList.contains("active")) renderTabPartidos();
+    const abiertoIdx = state.partidos.findIndex(p => p.id === abiertoId);
+    if(abiertoIdx >= 0){
+      if(document.getElementById('creador').classList.contains('active')) verDetalle(abiertoIdx);
+      if(document.getElementById('infoPartido').classList.contains('active')) verInfoPartido(abiertoIdx);
+    }
     chequearPartidosFinalizados();
   });
 }
@@ -32,7 +38,7 @@ async function chequearPartidosFinalizados(){
 
     for(let c of p.confirmados){
       let uid = uidDeConfirmado(c);
-      if(!uid) continue; // partido viejo sin uid guardado
+      if(!uid || c.pendienteReconfirmar) continue; // No contar a quien no reconfirmó.
       try{
         await addDoc(collection(db, "usuarios", uid, "notificaciones"), {
           tipo: "calificar",
@@ -279,8 +285,9 @@ function getConfirmadoItemHTML(c, p, estado){
   let esCreador = nombre === p.creador;
   const jugadorUid = uidDeConfirmado(c) || (esCreador ? p.creadorUid : null);
   let yaCalifique = ((p.calificacionesPorUid||{})[encodeURIComponent(state.usuario.uid)]||[]).includes(jugadorUid) || ((p.calificaciones||{})[state.perfil.nombre]||[]).includes(nombre);
-  let accion = '';
-  if(estado === 'finalizado' && !esYo){
+  const pendiente = typeof c === 'object' && c.pendienteReconfirmar;
+  let accion = pendiente ? '<span style="color:#d5bc76;font-size:12px;">Pendiente de reconfirmar</span>' : '';
+  if(estado === 'finalizado' && !esYo && !pendiente && !esperaReconfirmacion(p)){
     accion = yaCalifique
       ? `<span style="color:var(--green);font-size:12px;white-space:nowrap;">✅ Calificado</span>`
       : `<button onclick="abrirModalRating('${nombre}','${p.id}','${p.creadorUid}')" style="background:var(--surface2);border:1px solid #333;border-radius:8px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">⭐ Calificar</button>`;
@@ -408,7 +415,7 @@ function renderTabPartidos(){
       html += `<div class="partido-item" onclick="verInfoPartido(${ri})">
         <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}</div>
         <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
-        <div class="partido-item-sub" style="margin-top:4px;">✅ Confirmado · Ver info</div>
+        <div class="partido-item-sub" style="margin-top:4px;">${esperaReconfirmacion(p) ? '🕓 Confirmá el nuevo horario' : '✅ Confirmado · Ver info'}</div>
       </div>`;
     });
   } else {
@@ -682,6 +689,8 @@ let motivoPartidoId = null;
 window.abrirMotivoCancelacion = (partidoId) => {
   motivoPartidoId = partidoId || (state.partidos[state.idx] && state.partidos[state.idx].id);
   motivoCancelacionElegido = null;
+  document.getElementById('btnReprogramarPartido').hidden = true;
+  document.getElementById('ayudaReprogramar').hidden = true;
   document.querySelectorAll(".motivo-btn").forEach(b => b.classList.remove("selected"));
   document.getElementById("motivoDetalleInput").value = "";
   document.getElementById("btnConfirmarCancelacion").disabled = true;
@@ -698,6 +707,10 @@ window.selMotivoCancelacion = (btn, motivo) => {
   let boton = document.getElementById("btnConfirmarCancelacion");
   boton.disabled = false;
   boton.textContent = "🚫 Confirmar cancelación";
+  const p = state.partidos.find(p => p.id === motivoPartidoId);
+  const permitir = motivo === 'No puedo llegar a la hora' && p?.creadorUid === state.usuario?.uid && getEstadoPartido(p) === 'activo';
+  document.getElementById('btnReprogramarPartido').hidden = !permitir;
+  document.getElementById('ayudaReprogramar').hidden = !permitir;
 };
 
 window.confirmarCancelacionConMotivo = async () => {
@@ -748,6 +761,154 @@ window.cancelarPartido = async (partidoId, motivo) => {
   if(porAdmin) verAdminPanel(); else verMisPartidos();
 };
 
+
+function esperaReconfirmacion(p, uid = state.usuario?.uid, nombre = state.perfil?.nombre){
+  return (p.confirmados || []).some(c => typeof c === 'object' && c.pendienteReconfirmar &&
+    (c.uid ? c.uid === uid : c.nombre === nombre));
+}
+
+function prepararReprogramacion(p, fecha, hora, uid, ahora = Date.now()){
+  if(p.creadorUid !== uid) throw new Error('Solo el creador puede reprogramar el partido.');
+  if(getEstadoPartido(p) !== 'activo') throw new Error('Solo podés reprogramar un partido que todavía no empezó.');
+  const inicio = new Date(fecha + 'T' + hora + ':00-03:00').getTime();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora) ||
+    !Number.isFinite(inicio) || new Date(inicio - 10800000).toISOString().slice(0,10) !== fecha || inicio <= ahora){
+    throw new Error('Elegí una fecha y hora futuras válidas.');
+  }
+  if(fecha === p.fecha && hora === p.hora) throw new Error('Elegí un horario diferente al actual.');
+  const duracion = ({'1h':60,'1:30h':90,'2h':120})[p.duracion] || 90;
+  const confirmados = (p.confirmados || []).map(c => {
+    const jugador = typeof c === 'string' ? {nombre:c,uid:null} : {...c};
+    const creador = jugador.uid ? jugador.uid === uid : jugador.nombre === p.creador;
+    return {...jugador, pendienteReconfirmar:!creador};
+  });
+  return {fecha,hora,inicioTimestamp:inicio,finTimestamp:inicio + duracion*60000,
+    confirmados,solicitudes:[],versionHorario:(Number(p.versionHorario)||0)+1,
+    horarioAnterior:{fecha:p.fecha,hora:p.hora},notifRatingEnviada:false};
+}
+
+let reprogramacionAbierta = false;
+window.abrirReprogramacion = () => {
+  const partidoId = motivoPartidoId;
+  const p = state.partidos.find(p => p.id === partidoId);
+  const uid = state.usuario?.uid;
+  if(reprogramacionAbierta || !p || p.creadorUid !== uid || getEstadoPartido(p) !== 'activo') return;
+  cerrarMotivoCancelacion();
+  reprogramacionAbierta = true;
+  const dialogo = document.createElement('dialog');
+  dialogo.className = 'editor-grupo';
+  dialogo.setAttribute('aria-labelledby','titulo-reprogramar');
+  dialogo.innerHTML = '<h2 id="titulo-reprogramar">Reprogramar partido</h2>' +
+    '<p>Les avisaremos a los jugadores. Su lugar queda reservado hasta que confirmen el nuevo horario o se bajen. Las solicitudes sin aceptar se cancelarán para que puedan pedir unirse de nuevo.</p>' +
+    '<label class="form-label" for="nueva-fecha">Nueva fecha</label><input class="form-input" id="nueva-fecha" type="date">' +
+    '<label class="form-label" for="nueva-hora" style="margin-top:16px;">Nueva hora</label><input class="form-input" id="nueva-hora" type="time">' +
+    '<p role="alert" style="color:var(--red,#ff4d4d)"></p><button class="submit-btn" data-guardar>Reprogramar y avisar</button>' +
+    '<button class="submit-btn" data-volver style="margin-top:10px;background:#252525;color:#eee;">Volver</button>';
+  const fecha = dialogo.querySelector('#nueva-fecha'), hora = dialogo.querySelector('#nueva-hora');
+  fecha.min = hoyEnUruguay(); fecha.value = p.fecha; hora.value = p.hora;
+  const guardar = dialogo.querySelector('[data-guardar]'), volver = dialogo.querySelector('[data-volver]');
+  const error = dialogo.querySelector('[role="alert"]');
+  const overflow = document.body.style.overflow;
+  const origen = document.activeElement;
+  let ocupado = false, cerrado = false;
+  const cerrar = () => {
+    if(ocupado || cerrado) return;
+    cerrado = true; dialogo.close(); dialogo.remove();
+    document.body.style.overflow = overflow; reprogramacionAbierta = false;
+    if(origen?.isConnected) origen.focus({preventScroll:true});
+  };
+  volver.onclick = cerrar;
+  dialogo.addEventListener('cancel', e => { e.preventDefault(); cerrar(); });
+  dialogo.addEventListener('close', cerrar);
+  guardar.onclick = async () => {
+    if(ocupado) return;
+    ocupado = true; guardar.disabled = volver.disabled = fecha.disabled = hora.disabled = true;
+    guardar.textContent = 'Reprogramando…'; error.textContent = '';
+    let resultado;
+    try {
+      resultado = await runTransaction(db, async tx => {
+        if(state.usuario?.uid !== uid) throw new Error('La sesión cambió. Volvé a ingresar.');
+        const ref = doc(db,'partidos',partidoId);
+        const snap = await tx.get(ref);
+        if(!snap.exists()) throw new Error('El partido ya no está disponible.');
+        const actual = snap.data();
+        if((actual.versionHorario || 0) !== (p.versionHorario || 0)) throw new Error('El horario ya cambió. Cerrá esta ventana y revisá el partido.');
+        const cambios = prepararReprogramacion(actual,fecha.value,hora.value,uid);
+        tx.update(ref,cambios);
+        const confirmadosUid = new Set(cambios.confirmados.filter(c => c.pendienteReconfirmar && c.uid).map(c => c.uid));
+        const pendientesUid = new Set((actual.solicitudes || []).map(s=>s.uid).filter(id=>id && id!==uid && !confirmadosUid.has(id)));
+        for(const receptor of [...confirmadosUid,...pendientesUid]){
+          const confirmado = confirmadosUid.has(receptor);
+          tx.set(doc(db,'usuarios',receptor,'notificaciones',partidoId+'_horario_'+cambios.versionHorario),{
+            tipo:confirmado?'reprogramado':'solicitud_reprogramada',
+            texto:'El partido en '+actual.cancha+' cambió al '+fechaPartido(cambios.fecha)+' a las '+cambios.hora+'. '+
+              (confirmado?'Confirmá si podés venir. Tu lugar está reservado.':'Tu solicitud anterior se canceló. Podés pedir unirte al nuevo horario.'),
+            partidoId,versionHorario:cambios.versionHorario,visto:false,creadoEn:serverTimestamp()
+          });
+        }
+        return {...actual,...cambios,id:partidoId};
+      });
+    } catch(e) { error.textContent = e.message || 'No se pudo reprogramar. Intentá de nuevo.'; }
+    finally {
+      ocupado = false; guardar.disabled = volver.disabled = fecha.disabled = hora.disabled = false;
+      guardar.textContent = 'Reprogramar y avisar';
+    }
+    if(!resultado) return;
+    cerrar();
+    if(state.usuario?.uid !== uid) return;
+    const i = state.partidos.findIndex(p=>p.id===partidoId);
+    if(i>=0){state.partidos[i]=resultado;verDetalle(i);}
+    window.mostrarAviso('Partido reprogramado. Avisamos a los jugadores.', 'success');
+  };
+  document.body.append(dialogo); document.body.style.overflow='hidden'; dialogo.showModal(); volver.focus();
+};
+
+function reconfirmacionHTML(p){
+  if(!esperaReconfirmacion(p)) return '';
+  if(getEstadoPartido(p) !== 'activo') return '<p style="color:var(--text-muted)">No confirmaste tu participación en este nuevo horario.</p>';
+  const id = escaparJugador(p.id), version = Number(p.versionHorario)||0;
+  return '<div style="padding:16px;margin-bottom:18px;border:1px solid var(--green);border-radius:14px;background:#001a00;">' +
+    '<strong>Cambió el horario</strong><p style="font-size:14px;line-height:1.5;">Tu lugar está reservado. ¿Podés jugar el '+fechaPartido(p.fecha)+' a las '+escaparJugador(p.hora)+'?</p>' +
+    '<button class="submit-btn" data-id="'+id+'" data-version="'+version+'" onclick="responderReprogramacion(this.dataset.id,Number(this.dataset.version),true)">Sí, voy</button>' +
+    '<button class="submit-btn" style="background:#252525;color:#eee;margin-top:8px;" data-id="'+id+'" data-version="'+version+'" onclick="responderReprogramacion(this.dataset.id,Number(this.dataset.version),false)">No puedo, liberar mi lugar</button></div>';
+}
+
+const respuestasHorario = new Set();
+window.responderReprogramacion = async (partidoId, version, acepta) => {
+  const uid = state.usuario?.uid, nombre = state.perfil?.nombre;
+  if(!uid || respuestasHorario.has(partidoId)) return;
+  respuestasHorario.add(partidoId);
+  try {
+    const resultado = await runTransaction(db, async tx => {
+      if(state.usuario?.uid !== uid) throw new Error('La sesión cambió.');
+      const ref = doc(db,'partidos',partidoId), snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('El partido ya no está disponible.');
+      const p = snap.data();
+      if(p.versionHorario !== version) throw new Error('El horario cambió otra vez. Revisá el nuevo horario antes de responder.');
+      if(getEstadoPartido(p) !== 'activo') throw new Error('El partido ya empezó o terminó.');
+      if(!esperaReconfirmacion(p,uid,nombre)) return {...p,id:partidoId};
+      const esYo = c => typeof c === 'object' && (c.uid ? c.uid === uid : c.nombre === nombre);
+      const confirmados = acepta
+        ? p.confirmados.map(c=>esYo(c)?{...c,pendienteReconfirmar:false}:c)
+        : p.confirmados.filter(c=>!esYo(c));
+      const cambios = {confirmados,jugadores:acepta?p.jugadores:Math.max(0,Number(p.jugadores)-1)};
+      tx.update(ref,cambios);
+      tx.set(doc(db,'usuarios',p.creadorUid,'notificaciones',partidoId+'_respuesta_'+version+'_'+uid),{
+        tipo:'respuesta_horario',texto:nombre+(acepta?' confirmó el nuevo horario':' no puede venir al nuevo horario y liberó su lugar')+' en '+p.cancha+'.',
+        partidoId,visto:false,creadoEn:serverTimestamp()
+      });
+      return {...p,...cambios,id:partidoId};
+    });
+    if(state.usuario?.uid !== uid) return;
+    const i = state.partidos.findIndex(p=>p.id===partidoId);
+    if(i>=0) state.partidos[i]=resultado;
+    if(acepta && i>=0) verInfoPartido(i); else verMisPartidos();
+    window.mostrarAviso(acepta?'Confirmaste el nuevo horario.':'Liberaste tu lugar.', 'success');
+  } catch(e){ window.mostrarAviso(e.message || 'No se pudo guardar tu respuesta.', 'error'); }
+  finally { respuestasHorario.delete(partidoId); }
+};
+
+
 // ---- INFO PARTIDO (confirmado) ----
 window.verInfoPartido = (i) => {
   state.idx = i;
@@ -771,6 +932,7 @@ window.verInfoPartido = (i) => {
       </div>
     </div>
     <div style="padding:20px;">
+      ${reconfirmacionHTML(p)}
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
         <div class="card-tag">📅 <span>${fechaStr}</span></div>
         <div class="card-tag">🕓 <span>${p.hora}</span></div>
@@ -786,7 +948,7 @@ window.verInfoPartido = (i) => {
         <div class="bar-bg"><div class="bar-fill" style="width:${fill}%"></div></div>
       </div>
 
-      <p class="section-title">Jugadores confirmados</p>
+      <p class="section-title">Jugadores y lugares reservados</p>
       <div class="confirmados-list" style="margin-bottom:20px;">${htmlConf}${grupoDelCreadorHTML(p)}</div>
 
       <button onclick="abrirChatIdx(${i})" style="width:100%;padding:14px;background:#001a00;color:var(--green);border:1px solid var(--green);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;">
@@ -800,6 +962,7 @@ window.verInfoPartido = (i) => {
 };
 
 function getBajarseBtnHTML(p, i){
+  if(esperaReconfirmacion(p)) return '';
   if(getEstadoPartido(p) === 'finalizado') return '';
   let ahora = Date.now();
   let unaHora = 60 * 60 * 1000;
@@ -836,21 +999,25 @@ window.bajarseDepartido = async (i) => {
     return;
   }
 
-  // Sacar de confirmados
-  let nuevosConf = (p.confirmados||[]).filter(c => nombreDeConfirmado(c) !== state.perfil.nombre);
-  await updateDoc(doc(db, "partidos", p.id), {
-    confirmados: nuevosConf,
-    jugadores: Math.max((p.jugadores||1) - 1, 0)
-  });
-
-  // Notificar al creador
-  await addDoc(collection(db, "usuarios", p.creadorUid, "notificaciones"), {
-    tipo: "bajada",
-    texto: `${state.perfil.nombre} canceló su participación en el partido de ${p.cancha}.`,
-    partidoId: p.id,
-    visto: false,
-    creadoEn: serverTimestamp()
-  });
+  try {
+    const version = Number(p.versionHorario)||0;
+    await runTransaction(db, async tx => {
+      const ref = doc(db,'partidos',p.id), snap = await tx.get(ref);
+      if(!snap.exists()) throw new Error('El partido ya no está disponible.');
+      const actual = snap.data();
+      if((Number(actual.versionHorario)||0) !== version || esperaReconfirmacion(actual,uid,state.perfil.nombre)){
+        throw new Error('El horario cambió. Revisá el partido y respondé si podés venir.');
+      }
+      if(getEstadoPartido(actual) !== 'activo' || actual.inicioTimestamp - Date.now() < unaHora) throw new Error('Ya no podés bajarte de este partido.');
+      const esYo = c => typeof c === 'string' ? c === state.perfil.nombre : c.uid ? c.uid === uid : c.nombre === state.perfil.nombre;
+      if(!(actual.confirmados||[]).some(esYo)) return;
+      tx.update(ref,{confirmados:actual.confirmados.filter(c=>!esYo(c)),jugadores:Math.max(0,Number(actual.jugadores)-1)});
+      tx.set(doc(db,'usuarios',actual.creadorUid,'notificaciones',p.id+'_bajada_'+version+'_'+uid),{
+        tipo:'bajada',texto:state.perfil.nombre+' canceló su participación en el partido de '+actual.cancha+'.',
+        partidoId:p.id,visto:false,creadoEn:serverTimestamp()
+      });
+    });
+  } catch(e){ window.mostrarAviso(e.message || 'No se pudo liberar tu lugar.', 'error'); return; }
 
   verMisPartidos();
 };
