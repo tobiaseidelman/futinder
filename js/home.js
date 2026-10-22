@@ -1,3 +1,4 @@
+import { fechaPartido } from './navigation.js';
 import { getDoc, doc, db, updateDoc, addDoc, collection, serverTimestamp } from './firebase.js';
 import { actualizarBadge } from './notifications.js';
 import { state } from './state.js';
@@ -119,11 +120,8 @@ function animateAway(dir){
 function textoTarjeta(value){
   return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function fechaTarjeta(fecha){
-  if(!fecha) return 'Fecha a confirmar';
-  const fechaLocal = new Date(fecha + 'T12:00:00');
-  return Number.isNaN(fechaLocal.getTime()) ? fecha : fechaLocal.toLocaleDateString('es-UY', {weekday:'short', day:'numeric', month:'short'});
-}
+function fechaTarjeta(fecha){ return fechaPartido(fecha); }
+
 async function cargarCreadorTarjeta(p){
   if(!p.creadorUid) return;
   try {
