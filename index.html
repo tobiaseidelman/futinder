@@ -19,7 +19,7 @@
 .editor-grupo input{font-size:16px;width:100%;box-sizing:border-box}
 .editor-grupo button{min-height:48px}
 .editor-grupo button:disabled{opacity:.55;cursor:wait}
-</style></head>
+</style><style>#btnReprogramarPartido[hidden],#ayudaReprogramar[hidden]{display:none!important;}</style></head>
 <body>
 
 <!-- LOADING -->
@@ -375,6 +375,8 @@
       <input class="form-input" id="motivoDetalleInput" placeholder="Agregá una aclaración si querés...">
     </div>
 
+    <button class="submit-btn" id="btnReprogramarPartido" hidden onclick="abrirReprogramacion()">Elegir otra fecha u hora</button>
+    <p id="ayudaReprogramar" hidden style="color:var(--text-muted);font-size:13px;line-height:1.4;">Los jugadores tendrán que confirmar el nuevo horario. También podés cancelar definitivamente.</p>
     <button class="submit-btn" id="btnConfirmarCancelacion" onclick="confirmarCancelacionConMotivo()" style="background:#1a0000;color:var(--red);border:1px solid #400;" disabled>Elegí un motivo para continuar</button>
     <button class="submit-btn" onclick="cerrarMotivoCancelacion()" style="background:var(--surface2);color:var(--text-muted);border:1px solid #333;margin-top:8px;">Volver</button>
   </div>
