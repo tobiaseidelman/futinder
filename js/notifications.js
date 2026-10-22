@@ -31,7 +31,7 @@ window.verNotificaciones = () => {
           <div class="notif-dot ${n.visto?'visto':''}"></div>
           <div>
             <div class="notif-text">${n.texto}</div>
-            <div class="notif-sub">${n.tipo==='solicitud'?'Solicitud de partido':n.tipo==='cancelado'?'Partido cancelado':n.tipo==='bajada'?'Jugador se bajó':n.tipo==='calificar'?'Calificá a tus compañeros':'Aceptado en partido'}</div>
+            <div class="notif-sub">${n.tipo==='reprogramado'?'Confirmá el nuevo horario':n.tipo==='respuesta_horario'?'Respuesta al nuevo horario':n.tipo==='solicitud_reprogramada'?'Cambió el horario':n.tipo==='solicitud'?'Solicitud de partido':n.tipo==='cancelado'?'Partido cancelado':n.tipo==='bajada'?'Jugador se bajó':n.tipo==='calificar'?'Calificá a tus compañeros':'Aceptado en partido'}</div>
           </div>
         </div>`).join('');
   document.getElementById("listaNotificaciones").innerHTML = html;
@@ -46,7 +46,14 @@ window.abrirNotificacion = async (notifId) => {
   let pi = state.partidos.findIndex(p => p.id === n.partidoId);
   if(pi >= 0){
     state.idx = pi;
-    if(n.tipo === "solicitud") verMisPartidos(); // lleva al creador a sus partidos
+    if(n.tipo === 'reprogramado' || n.tipo === 'respuesta_horario'){
+      const p = state.partidos[pi];
+      if(p.creadorUid === state.usuario.uid) verDetalle(pi);
+      else if((p.confirmados||[]).some(c => typeof c === 'string' ? c === state.perfil?.nombre : c.uid ? c.uid === state.usuario.uid : c.nombre === state.perfil?.nombre)) verInfoPartido(pi);
+      else { window.mostrarAviso('Ya no tenés un lugar reservado en este partido.'); verMisPartidos(); }
+    }
+    else if(n.tipo === 'solicitud_reprogramada') irHome();
+    else if(n.tipo === "solicitud") verMisPartidos(); // lleva al creador a sus partidos
     else if(n.tipo === "calificar"){
       if(state.partidos[state.idx].creadorUid === state.usuario.uid) verDetalle(state.idx); else verInfoPartido(state.idx);
     }
