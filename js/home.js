@@ -1,8 +1,8 @@
 import { fechaPartido } from './navigation.js';
-import { getDoc, doc, db, updateDoc, addDoc, collection, serverTimestamp } from './firebase.js';
+import { runTransaction, getDoc, doc, db, updateDoc, addDoc, collection, serverTimestamp } from './firebase.js';
 import { actualizarBadge } from './notifications.js';
 import { state } from './state.js';
-import { nombreDeConfirmado } from './matches.js';
+import { nombreDeConfirmado, getEstadoPartido } from './matches.js';
 import { partidoPasaFiltros, filtros } from './filters.js';
 import { calcularDistancia } from './location.js';
 
@@ -176,7 +176,7 @@ window.render = () => {
   if(hint) hint.hidden = pendiente;
   if(hint) hint.style.display = pendiente ? 'none' : '';
   let solicitud = pendiente ? state.partidos.find(p => p.id === solicitudAbiertaId) : null;
-  if(pendiente && (!solicitud || !(solicitud.solicitudes || []).some(s => s.uid === state.usuario?.uid) ||
+  if(pendiente && (!solicitud || getEstadoPartido(solicitud) !== 'activo' || !(solicitud.solicitudes || []).some(s => s.uid === state.usuario?.uid) ||
       (solicitud.confirmados || []).some(c => c.uid === state.usuario?.uid))){
     window.volverAPendientes();
     return;
@@ -189,7 +189,7 @@ window.render = () => {
   let ahora = Date.now();
   let partidosFiltrados = state.partidos.filter(p => {
     if(state.perfil && p.creador === state.perfil.nombre) return false;
-    if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
+    if(getEstadoPartido(p) !== 'activo') return false;
     if(state.perfil && (p.solicitudes||[]).some(s => s.nombre === state.perfil.nombre)) return false;
     if(state.perfil && (p.confirmados||[]).some(c => nombreDeConfirmado(c) === state.perfil.nombre)) return false;
     if(p.jugadores >= p.max) return false; // partido lleno
@@ -310,7 +310,7 @@ window.next = () => {
   let ahora = Date.now();
   let filtrados = state.partidos.filter(p => {
     if(state.perfil && p.creador === state.perfil.nombre) return false;
-    if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
+    if(getEstadoPartido(p) !== 'activo') return false;
     if(state.perfil && (p.solicitudes||[]).some(s => s.nombre === state.perfil.nombre)) return false;
     if(state.perfil && (p.confirmados||[]).some(c => nombreDeConfirmado(c) === state.perfil.nombre)) return false;
     if(p.jugadores >= p.max) return false;
@@ -328,7 +328,7 @@ window.match = async () => {
   let ahora = Date.now();
   let filtrados = state.partidos.filter(p => {
     if(p.creador === state.perfil.nombre) return false;
-    if(p.inicioTimestamp && ahora >= p.inicioTimestamp) return false;
+    if(getEstadoPartido(p) !== 'activo') return false;
     if((p.solicitudes||[]).some(s => s.nombre === state.perfil.nombre)) return false;
     if((p.confirmados||[]).some(c => nombreDeConfirmado(c) === state.perfil.nombre)) return false;
     if(p.jugadores >= p.max) return false;
@@ -345,8 +345,17 @@ window.match = async () => {
   try {
   // Las imágenes se consultan por UID; no duplicarlas dentro de cada partido.
   const { foto, portada, portadaY, jugadas, ...perfilSolicitud } = state.perfil;
-  let nuevasSolicitudes = [...(p.solicitudes||[]), {...perfilSolicitud, uid: state.usuario.uid}];
-  await updateDoc(doc(db, "partidos", p.id), { solicitudes: nuevasSolicitudes });
+  const uid = state.usuario.uid;
+  await runTransaction(db, async tx => {
+    const ref = doc(db,'partidos',p.id), snap = await tx.get(ref);
+    if(!snap.exists()) throw new Error('El partido ya no está disponible.');
+    const actual = snap.data();
+    if(getEstadoPartido(actual) !== 'activo') throw new Error('El partido ya empezó. No podés enviar una solicitud.');
+    if((actual.versionHorario||0) !== (p.versionHorario||0)) throw new Error('Cambió el horario. Revisá la tarjeta antes de unirte.');
+    if(Number(actual.jugadores) >= Number(actual.max)) throw new Error('El partido ya está completo.');
+    if((actual.solicitudes||[]).some(s=>s.uid===uid) || (actual.confirmados||[]).some(c=>c.uid===uid)) throw new Error('Ya tenés una solicitud o un lugar en este partido.');
+    tx.update(ref,{solicitudes:[...(actual.solicitudes||[]),{...perfilSolicitud,uid}]});
+  });
 
   window.mostrarAviso("Solicitud enviada", "success");
   // Notificación al creador en Firebase
@@ -364,7 +373,7 @@ window.match = async () => {
   }
   render();
   } catch(e) {
-    window.mostrarAviso("No se pudo enviar. Intentá de nuevo.", "error");
+    window.mostrarAviso(e.message || "No se pudo enviar. Intentá de nuevo.", "error");
   } finally {
     enviandoSolicitud = false;
   }
