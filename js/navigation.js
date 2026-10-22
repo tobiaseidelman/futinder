@@ -41,3 +41,19 @@ window.mostrarAviso = (mensaje, tipo = 'info') => {
     if(avisoActual === aviso) avisoActual = null;
   }, error ? 6000 : 3000);
 };
+
+export function fechaPartido(fecha, ahora = new Date()){
+  if(typeof fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return 'Fecha a confirmar';
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  const fechaUTC = new Date(Date.UTC(anio, mes - 1, dia));
+  if(fechaUTC.getUTCFullYear() !== anio || fechaUTC.getUTCMonth() !== mes - 1 || fechaUTC.getUTCDate() !== dia) return 'Fecha a confirmar';
+  const partes = new Intl.DateTimeFormat('en', {timeZone:'America/Montevideo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(ahora);
+  const valor = tipo => Number(partes.find(p => p.type === tipo).value);
+  const hoy = Date.UTC(valor('year'),valor('month') - 1,valor('day'));
+  const dias = (fechaUTC.getTime() - hoy) / 86400000;
+  if(dias >= 0 && dias <= 7){
+    const semana = ['dom.','lun.','mar.','mié.','jue.','vie.','sáb.'];
+    return semana[fechaUTC.getUTCDay()] + ' ' + dia;
+  }
+  return String(dia).padStart(2,'0') + '-' + String(mes).padStart(2,'0') + '-' + anio;
+}
