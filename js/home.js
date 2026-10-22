@@ -355,22 +355,13 @@ window.match = async () => {
     if(Number(actual.jugadores) >= Number(actual.max)) throw new Error('El partido ya está completo.');
     if((actual.solicitudes||[]).some(s=>s.uid===uid) || (actual.confirmados||[]).some(c=>c.uid===uid)) throw new Error('Ya tenés una solicitud o un lugar en este partido.');
     tx.update(ref,{solicitudes:[...(actual.solicitudes||[]),{...perfilSolicitud,uid}]});
+    tx.set(doc(db,'usuarios',actual.creadorUid,'notificaciones',p.id+'_solicitud_'+uid),{
+      tipo:'solicitud',solicitanteUid:uid,texto:perfilSolicitud.nombre+' quiere unirse a '+actual.cancha,
+      partidoId:p.id,visto:false,creadoEn:serverTimestamp()
+    });
   });
 
   window.mostrarAviso("Solicitud enviada", "success");
-  // Notificación al creador en Firebase
-  try {
-  await addDoc(collection(db, "usuarios", p.creadorUid, "notificaciones"), {
-    tipo: "solicitud",
-    texto: `${state.perfil.nombre} quiere unirse a ${p.cancha}`,
-    partidoId: p.id,
-    visto: false,
-    creadoEn: serverTimestamp()
-  });
-
-  } catch(e) {
-    window.mostrarAviso("Solicitud enviada, pero no se pudo avisar al creador.", "error");
-  }
   render();
   } catch(e) {
     window.mostrarAviso(e.message || "No se pudo enviar. Intentá de nuevo.", "error");
