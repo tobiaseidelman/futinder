@@ -103,7 +103,7 @@ window.enviarRating = async () => {
       if(opinionSnap.exists() || anteriores.includes(targetUid) || legado.includes(nombre)){
         return {duplicada:true,p};
       }
-      const participa = uid => p.creadorUid === uid || (p.confirmados||[]).some(c=>uidDeConfirmado(c) === uid);
+      const participa = uid => p.creadorUid === uid || (p.confirmados||[]).some(c=>uidDeConfirmado(c) === uid && !c.pendienteReconfirmar);
       if(!participa(autorUid) || !participa(targetUid)) throw new Error('Solo pueden calificarse los jugadores de este partido.');
       if(!Number.isFinite(p.finTimestamp) || Date.now() < p.finTimestamp) throw new Error('Podés calificar cuando termine el partido.');
       const calificacionesPorUid = {...porUid,[claveAutor]:[...anteriores,targetUid]};
