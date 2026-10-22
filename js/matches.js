@@ -474,13 +474,13 @@ function grupoDelCreadorHTML(p){
   const cantidad = Math.max(0, (Number(p.jugadores) || 0) - (p.confirmados || []).length);
   const editable = p.creadorUid === state.usuario?.uid && getEstadoPartido(p) === 'activo';
   if(!cantidad && !editable) return '';
-  const editar = editable ? '<button type="button" class="submit-btn" style="margin-top:12px;font-size:14px;" data-partido-id="' + escaparJugador(p.id) + '" onclick="editarGrupoPartido(this.dataset.partidoId)">Cambiar cuántos vienen conmigo</button>' : '';
-  return '<div style="padding:14px 20px;border-top:1px solid #282828;">' +
-    '<div style="font-size:14px;color:var(--text);">' + cantidad +
+  const editar = editable ? '<button type="button" aria-label="Editar cuántos vienen conmigo" style="flex:0 0 auto;min-height:44px;padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--text-muted,#aaa);font-family:inherit;font-size:13px;font-weight:500;line-height:1.4;cursor:pointer;text-decoration:underline;text-underline-offset:3px;" data-partido-id="' + escaparJugador(p.id) + '" onclick="editarGrupoPartido(this.dataset.partidoId)">Editar</button>' : '';
+  return '<div style="padding:10px 20px;border-top:1px solid #282828;">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">' +
+    '<div style="min-width:0;font-size:14px;line-height:1.4;color:var(--text);">' + cantidad +
     (cantidad === 1 ? ' jugador del grupo del creador' : ' jugadores del grupo del creador') +
-    '</div><div style="margin-top:4px;font-size:12px;line-height:1.4;color:var(--text-muted);">Ya incluidos en el total del partido.</div>' + editar + '</div>';
+    '</div>' + editar + '</div><div style="margin-top:4px;font-size:12px;line-height:1.4;color:var(--text-muted);">Ya incluidos en el total del partido.</div></div>';
 }
-
 
 function totalConGrupo(p, cantidad, uid){
   if(p.creadorUid !== uid) throw new Error('Solo el creador puede cambiar su grupo.');
