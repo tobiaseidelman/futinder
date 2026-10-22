@@ -391,3 +391,16 @@
 .portada-actions { display:flex;gap:8px;margin-top:10px;align-items:center; }
 .portada-actions .submit-btn { flex:1; }
 .portada-actions button { min-height:44px; }
+
+/* Chat móvil: encabezado, conversación y escritura dentro del área visible. */
+body.chat-abierto { overflow:hidden; }
+#chat { position:fixed; top:var(--chat-top,0px); left:50%; transform:translateX(-50%); width:100%; max-width:420px; height:var(--chat-height,100dvh); min-height:0; overflow:hidden; background:var(--bg); z-index:110; }
+#chat .topbar { position:relative; top:auto; flex:0 0 auto; min-width:0; }
+#chat .topbar-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:22px; }
+#chat .back-btn,#chat .topbar > div:last-child { flex-shrink:0; }
+#chat .chat-messages { flex:1 1 0; min-height:0; padding:16px; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+#chat .msg { flex-shrink:0; overflow-wrap:anywhere; white-space:pre-wrap; }
+#chat .chat-input-bar { position:static; transform:none; width:100%; max-width:none; flex:0 0 auto; padding:10px 12px; padding-bottom:max(10px,env(safe-area-inset-bottom,0px)); }
+#chat .chat-input { min-width:0; width:0; font-size:16px; line-height:22px; min-height:44px; }
+#chat .send-btn { flex:0 0 44px; width:44px; height:44px; }
+#chat .send-btn:disabled { opacity:.5; }
