@@ -1,4 +1,4 @@
-import { fechaPartido } from './navigation.js';
+import { fechaPartido, confirmarAccion } from './navigation.js';
 import { state } from './state.js';
 import { runTransaction, getDoc, query, collection, db, orderBy, onSnapshot, updateDoc, doc, addDoc, serverTimestamp, increment, arrayUnion, deleteDoc } from './firebase.js';
 import { pedirUbicacion } from './location.js';
@@ -248,7 +248,12 @@ function solicitudesPendientesHTML(){
 window.retirarSolicitud = async partidoId => {
   const uid = state.usuario?.uid;
   if(!uid || retirosEnCurso.has(partidoId)) return;
-  if(!confirm('¿Retirar tu solicitud para este partido?')) return;
+  if(!await confirmarAccion({
+    titulo:'¿Cancelar tu solicitud?',
+    mensaje:'Vas a dejar de aparecer entre las solicitudes de este partido.',
+    aceptar:'Cancelar solicitud'
+  })) return;
+  if(state.usuario?.uid !== uid || retirosEnCurso.has(partidoId)) return;
   retirosEnCurso.add(partidoId);
   renderTabPartidos();
   try {
@@ -617,7 +622,19 @@ window.bajarseDepartido = async (i) => {
     return;
   }
 
-  if(!confirm(`¿Confirmas que querés bajarte del partido en ${p.cancha}?`)) return;
+  const uid = state.usuario?.uid;
+  if(!await confirmarAccion({
+    titulo:'¿Bajarte del partido?',
+    mensaje:`Vas a liberar tu lugar en ${p.cancha}. Le avisaremos al creador.`,
+    aceptar:'Bajarme'
+  })) return;
+  if(!uid || state.usuario?.uid !== uid) return;
+  p = state.partidos.find(partido => partido.id === p.id);
+  if(!p) return;
+  if(getEstadoPartido(p) !== 'activo' || (p.inicioTimestamp && p.inicioTimestamp - Date.now() < unaHora)){
+    window.mostrarAviso('Ya no podés bajarte de este partido.');
+    return;
+  }
 
   // Sacar de confirmados
   let nuevosConf = (p.confirmados||[]).filter(c => nombreDeConfirmado(c) !== state.perfil.nombre);
