@@ -1,3 +1,4 @@
+import { fechaPartido } from './navigation.js';
 import { state } from './state.js';
 import { getEstadoPartido, estadoBadge } from './matches.js';
 
@@ -11,7 +12,7 @@ window.verAdminPanel = () => {
     ? `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">No hay partidos activos ahora mismo.</div></div>`
     : activos.map(p => {
         let estado = getEstadoPartido(p);
-        let fechaStr = p.fecha ? `📅 ${p.fecha} · ` : '';
+        let fechaStr = p.fecha ? `📅 ${fechaPartido(p.fecha)} · ` : '';
         return `<div class="partido-item" style="position:relative;">
           <button onclick="abrirMotivoCancelacion('${p.id}')" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;">🚫</button>
           <div class="partido-item-title">${p.cancha}${estadoBadge(estado)}</div>
