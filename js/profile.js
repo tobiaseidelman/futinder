@@ -470,41 +470,62 @@ window.guardarPerfil = async () => {
 };
 
 // ---- MODAL JUGADOR ----
+let visitaPerfil=0;
+function textoPerfilSeguro(value){
+  return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function imagenPerfilSegura(src){
+  if(typeof src!=='string')return false;
+  if(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(src))return true;
+  try{return new URL(src).protocol==='https:';}catch{return false;}
+}
 window.abrirPerfilJugador = async (uid, nombre) => {
   document.getElementById("modalContent").innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">Cargando...</div>`;
   document.getElementById("modalJugador").classList.add("show");
+  const visita=++visitaPerfil;
   try {
     const snap = await getDoc(doc(db, "usuarios", uid));
+    if(visita!==visitaPerfil) return;
     let p = snap.exists() ? snap.data() : { nombre: nombre, posicion: '', bio: 'Sin bio', zona: 'Sin zona', partidos: 0, rating: 0 };
-    let foto = p.foto ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src, this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src, this);}" src="${p.foto}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="modal-avatar">${(p.nombre||nombre)[0].toUpperCase()}</div>`;
+    const nombreVisible=String(p.nombre||nombre||'Jugador');
+    const e=textoPerfilSeguro;
+    let foto = imagenPerfilSegura(p.foto) ? `<img class="foto-ampliable" role="button" tabindex="0" aria-label="Ampliar foto de perfil" onclick="ampliarFotoPerfil(this.src, this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ampliarFotoPerfil(this.src, this);}" src="${e(p.foto)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--bg);">` : `<div class="modal-avatar">${e(nombreVisible[0].toUpperCase())}</div>`;
     document.getElementById("modalContent").innerHTML = `
       ${portadaValida(p.portada) ? portadaHTML(p, 'modal-portada') : ''}
       <div class="modal-perfil-header">
         ${foto}
         <div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;">${p.nombre||nombre}</div>
-          ${p.posicion ? `<div style="display:inline-block;background:var(--green);color:#000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-top:4px;">${p.posicion}</div>` : ''}
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;">${e(nombreVisible)}</div>
+          ${p.posicion ? `<div style="display:inline-block;background:var(--green);color:#000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-top:4px;">${e(p.posicion)}</div>` : ''}
         </div>
       </div>
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-num">${p.partidos||0}</div><div class="stat-label">Partidos</div></div>
-        <div class="stat-card"><div class="stat-num">${p.calificacionesRecibidas?p.rating.toFixed(1):'-'}<span style="display:block;font-size:11px;color:var(--text-muted);font-weight:400;">(${p.calificacionesRecibidas||0})</span></div><div class="stat-label">Reputación</div></div>
-        <div class="stat-card" onclick="cerrarModal();abrirOpiniones('${uid}','${p.nombre||nombre}',irHome)" style="cursor:pointer;"><div class="stat-num">${(p.tagsMostrar||[]).length}</div><div class="stat-label">Tags ›</div></div>
+        <div class="stat-card"><div class="stat-num">${Number(p.partidos)||0}</div><div class="stat-label">Partidos</div></div>
+        <div class="stat-card"><div class="stat-num">${Number(p.calificacionesRecibidas)?(Number(p.rating)||0).toFixed(1):'-'}<span style="display:block;font-size:11px;color:var(--text-muted);font-weight:400;">(${Number(p.calificacionesRecibidas)||0})</span></div><div class="stat-label">Reputación</div></div>
+        <div class="stat-card" data-opiniones-perfil style="cursor:pointer;"><div class="stat-num">${(p.tagsMostrar||[]).length}</div><div class="stat-label">Tags ›</div></div>
       </div>
       <p class="section-title" style="margin-top:16px;">Bio</p>
-      <div class="bio-text">${p.bio||'Sin bio'}</div>
+      <div class="bio-text">${e(p.bio||'Sin bio')}</div>
       <p class="section-title" style="margin-top:12px;">Zona</p>
-      <div class="zona-row">📍 ${p.zona||'Sin zona'}</div>
+      <div class="zona-row">📍 ${e(p.zona||'Sin zona')}</div>
       ${(p.jugadas||[]).length > 0 ? `
       <p class="section-title" style="margin-top:12px;">Jugadas</p>
       <div class="highlight-list">
-        ${(p.jugadas||[]).map(url => `<div class="highlight-item" style="padding:0;overflow:hidden;background-image:url('${url}');background-size:cover;background-position:center;"></div>`).join('')}
+        ${(Array.isArray(p.jugadas)?p.jugadas:[]).filter(imagenPerfilSegura).map(url => `<div class="highlight-item" style="padding:0;overflow:hidden;"><img src="${e(url)}" alt="Jugada" style="width:100%;height:100%;object-fit:cover;"></div>`).join('')}
       </div>` : ''}`;
+    document.querySelector('[data-opiniones-perfil]').onclick=()=>{cerrarModal();abrirOpiniones(uid,nombreVisible,irHome);};
+    if(uid && uid !== state.usuario?.uid){
+      const reporte=document.createElement('button');
+      reporte.className='social-share-link';reporte.style.color='var(--text-muted)';reporte.textContent='Reportar usuario';
+      reporte.onclick=()=>window.reportarContenido('usuario',uid,p.nombre||nombre);
+      document.getElementById('modalContent').append(reporte);
+    }
   } catch(e) {
+    if(visita!==visitaPerfil) return;
     document.getElementById("modalContent").innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">No se pudo cargar el perfil</div>`;
   }
 };
-window.cerrarModal = () => document.getElementById("modalJugador").classList.remove("show");
+window.cerrarModal = () => {visitaPerfil++;document.getElementById("modalJugador").classList.remove("show");};
 
 
 export { fotoNuevaFile, comprimirImagen, subirFoto, jugadaSubiendo };
