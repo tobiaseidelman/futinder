@@ -1,0 +1,263 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function admin() { return signed() && request.auth.uid == 'CF4vDb4JcfZ7pDUOmXMKxqnjBM32'; }
+    function userPath(uid) { return /databases/$(database)/documents/usuarios/$(uid); }
+    function matchPath(id) { return /databases/$(database)/documents/partidos/$(id); }
+    function friendPath(a,b) { return /databases/$(database)/documents/usuarios/$(a)/amistades/$(b); }
+    function ratingPath(uid,id) { return /databases/$(database)/documents/usuarios/$(uid)/ratings/$(id); }
+    function now() { return request.time.toMillis(); }
+    function upcoming(p) { return p.inicioTimestamp is number && now() < p.inicioTimestamp; }
+    function finished(p) { return p.finTimestamp is number && now() >= p.finTimestamp; }
+    function at(list,i,uid) { return i is int && i >= 0 && i < list.size() && list[i] is map && list[i].get('uid','') == uid; }
+    function memberAt(p,i,uid) { return at(p.get('confirmados',[]),i,uid) && !p.confirmados[i].get('pendienteReconfirmar',false); }
+    // Existing confirmed-player arrays are bounded to F11 (22); ratings use verified indices.
+    function member(p,uid) { let cs=p.get('confirmados',[]); let count=cs.size(); return p.creadorUid == uid || (count > 0 && cs[0] is map && cs[0].get('uid','') == uid && !cs[0].get('pendienteReconfirmar',false)) || (count > 1 && cs[1] is map && cs[1].get('uid','') == uid && !cs[1].get('pendienteReconfirmar',false)) || (count > 2 && cs[2] is map && cs[2].get('uid','') == uid && !cs[2].get('pendienteReconfirmar',false)) || (count > 3 && cs[3] is map && cs[3].get('uid','') == uid && !cs[3].get('pendienteReconfirmar',false)) || (count > 4 && cs[4] is map && cs[4].get('uid','') == uid && !cs[4].get('pendienteReconfirmar',false)) || (count > 5 && cs[5] is map && cs[5].get('uid','') == uid && !cs[5].get('pendienteReconfirmar',false)) || (count > 6 && cs[6] is map && cs[6].get('uid','') == uid && !cs[6].get('pendienteReconfirmar',false)) || (count > 7 && cs[7] is map && cs[7].get('uid','') == uid && !cs[7].get('pendienteReconfirmar',false)) || (count > 8 && cs[8] is map && cs[8].get('uid','') == uid && !cs[8].get('pendienteReconfirmar',false)) || (count > 9 && cs[9] is map && cs[9].get('uid','') == uid && !cs[9].get('pendienteReconfirmar',false)) || (count > 10 && cs[10] is map && cs[10].get('uid','') == uid && !cs[10].get('pendienteReconfirmar',false)) || (count > 11 && cs[11] is map && cs[11].get('uid','') == uid && !cs[11].get('pendienteReconfirmar',false)) || (count > 12 && cs[12] is map && cs[12].get('uid','') == uid && !cs[12].get('pendienteReconfirmar',false)) || (count > 13 && cs[13] is map && cs[13].get('uid','') == uid && !cs[13].get('pendienteReconfirmar',false)) || (count > 14 && cs[14] is map && cs[14].get('uid','') == uid && !cs[14].get('pendienteReconfirmar',false)) || (count > 15 && cs[15] is map && cs[15].get('uid','') == uid && !cs[15].get('pendienteReconfirmar',false)) || (count > 16 && cs[16] is map && cs[16].get('uid','') == uid && !cs[16].get('pendienteReconfirmar',false)) || (count > 17 && cs[17] is map && cs[17].get('uid','') == uid && !cs[17].get('pendienteReconfirmar',false)) || (count > 18 && cs[18] is map && cs[18].get('uid','') == uid && !cs[18].get('pendienteReconfirmar',false)) || (count > 19 && cs[19] is map && cs[19].get('uid','') == uid && !cs[19].get('pendienteReconfirmar',false)) || (count > 20 && cs[20] is map && cs[20].get('uid','') == uid && !cs[20].get('pendienteReconfirmar',false)) || (count > 21 && cs[21] is map && cs[21].get('uid','') == uid && !cs[21].get('pendienteReconfirmar',false)); }
+    function changedOnly(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
+    function profileValid(d) {
+      return d.nombre is string && d.nombre.size() > 0 && d.nombre.size() <= 100
+        && d.get('bio','') is string && d.get('bio','').size() <= 2000
+        && d.get('posicion','') is string && d.get('zona','') is string
+        && d.get('jugadas',[]) is list && d.get('jugadas',[]).size() <= 6
+        && (d.get('foto',null) == null || (d.foto is string && d.foto.size() <= 250000))
+        && (d.get('portada',null) == null || (d.portada is string && d.portada.size() <= 90000))
+        && d.get('portadaY',50) is number && d.get('portadaY',50) >= 0 && d.get('portadaY',50) <= 100;
+    }
+    function countedGame(uid) {
+      let id=request.resource.data.ultimoPartidoContado;
+      let before=get(matchPath(id)).data;
+      let receipt=/databases/$(database)/documents/usuarios/$(uid)/partidosContados/$(id);
+      return request.auth.uid == uid && changedOnly(['partidos','ultimoPartidoContado'])
+        && finished(before) && !before.get('notifRatingEnviada',false)
+        && !exists(receipt) && getAfter(receipt).data.partidoId == id
+        && member(before,uid) && request.resource.data.partidos == resource.data.get('partidos',0)+1;
+    }
+    function tagIncrement(old,next,tags,i) {
+      return tags.size() <= i || next.get(tags[i],0) == old.get(tags[i],0)+1;
+    }
+    function ratingStats(uid) {
+      let d=request.resource.data;
+      let id=d.ultimaOpinionId;
+      let r=getAfter(ratingPath(uid,id)).data;
+      let n=resource.data.get('calificacionesRecibidas',0)+1;
+      let average=(resource.data.get('rating',0)*1.0*(n-1)+r.estrellas) / n;
+      let counts=d.tagContadores; let visible=d.tagsMostrar;
+      return changedOnly(['calificacionesRecibidas','rating','tagContadores','tagsMostrar','ultimaOpinionId'])
+        && !exists(ratingPath(uid,id)) && r.deUid == request.auth.uid && uid != request.auth.uid
+        && d.calificacionesRecibidas == n && d.rating >= average-0.000001 && d.rating <= average+0.000001
+        && d.tagContadores.diff(resource.data.get('tagContadores',{})).affectedKeys().hasOnly(r.tags)
+        && tagIncrement(resource.data.get('tagContadores',{}),d.tagContadores,r.tags,0)
+        && tagIncrement(resource.data.get('tagContadores',{}),d.tagContadores,r.tags,1)
+        && tagIncrement(resource.data.get('tagContadores',{}),d.tagContadores,r.tags,2)
+        && d.tagsMostrar is list && d.tagsMostrar.size() == d.tagsMostrar.toSet().size()
+        && d.tagsMostrar.hasOnly(['puntual', 'llega_tarde', 'equipo', 'no_pasa', 'buena_onda', 'mala_onda', 'corre', 'no_corre', 'define', 'no_define', 'pases', 'malos_pases', 'habilidoso', 'falta_tecnica', 'limpio', 'brusco', 'ganas', 'sin_ganas'])
+        && (('puntual' in visible) == (counts.get('puntual',0) >= 5)) && (('llega_tarde' in visible) == (counts.get('llega_tarde',0) >= 5 && counts.get('puntual',0) < counts.get('llega_tarde',0)*2))
+        && (('equipo' in visible) == (counts.get('equipo',0) >= 5)) && (('no_pasa' in visible) == (counts.get('no_pasa',0) >= 5 && counts.get('equipo',0) < counts.get('no_pasa',0)*2))
+        && (('buena_onda' in visible) == (counts.get('buena_onda',0) >= 5)) && (('mala_onda' in visible) == (counts.get('mala_onda',0) >= 5 && counts.get('buena_onda',0) < counts.get('mala_onda',0)*2))
+        && (('corre' in visible) == (counts.get('corre',0) >= 5)) && (('no_corre' in visible) == (counts.get('no_corre',0) >= 5 && counts.get('corre',0) < counts.get('no_corre',0)*2))
+        && (('define' in visible) == (counts.get('define',0) >= 5)) && (('no_define' in visible) == (counts.get('no_define',0) >= 5 && counts.get('define',0) < counts.get('no_define',0)*2))
+        && (('pases' in visible) == (counts.get('pases',0) >= 5)) && (('malos_pases' in visible) == (counts.get('malos_pases',0) >= 5 && counts.get('pases',0) < counts.get('malos_pases',0)*2))
+        && (('habilidoso' in visible) == (counts.get('habilidoso',0) >= 5)) && (('falta_tecnica' in visible) == (counts.get('falta_tecnica',0) >= 5 && counts.get('habilidoso',0) < counts.get('falta_tecnica',0)*2))
+        && (('limpio' in visible) == (counts.get('limpio',0) >= 5)) && (('brusco' in visible) == (counts.get('brusco',0) >= 5 && counts.get('limpio',0) < counts.get('brusco',0)*2))
+        && (('ganas' in visible) == (counts.get('ganas',0) >= 5)) && (('sin_ganas' in visible) == (counts.get('sin_ganas',0) >= 5 && counts.get('ganas',0) < counts.get('sin_ganas',0)*2));
+    }
+    match /usuarios/{uid} {
+      allow read: if signed();
+      allow create: if signed() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid','nombre','posicion','bio','zona','foto','jugadas','partidos','rating','calificacionesRecibidas'])
+        && request.resource.data.uid == uid && profileValid(request.resource.data)
+        && request.resource.data.partidos == 0 && request.resource.data.rating == 0 && request.resource.data.calificacionesRecibidas == 0;
+      allow update: if signed() && (
+        (request.auth.uid == uid && changedOnly(['nombre','posicion','bio','zona','foto','portada','portadaY','jugadas','consentimientoOsrm'])
+          && profileValid(request.resource.data)
+          && request.resource.data.get('consentimientoOsrm',false) is bool)
+        || countedGame(uid) || ratingStats(uid));
+      allow delete: if false;
+
+      match /partidosContados/{id} {
+        allow get: if signed() && request.auth.uid == uid;
+        allow create: if signed() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['partidoId','creadoEn'])
+          && request.resource.data.partidoId == id && request.resource.data.creadoEn == request.time
+          && finished(get(matchPath(id)).data) && !get(matchPath(id)).data.get('notifRatingEnviada',false)
+          && member(get(matchPath(id)).data,uid)
+          && getAfter(userPath(uid)).data.ultimoPartidoContado == id
+          && getAfter(userPath(uid)).data.partidos == get(userPath(uid)).data.get('partidos',0)+1;
+        allow update,delete: if false;
+      }
+      match /amistades/{other} {
+        function party() { return signed() && (request.auth.uid == uid || request.auth.uid == other) && uid != other; }
+        function mirrored() { return getAfter(friendPath(other,uid)).data == request.resource.data; }
+        allow get: if party();
+        allow list: if signed() && request.auth.uid == uid;
+        allow create: if party() && request.resource.data.keys().hasOnly(['estado','solicitanteUid','creadoEn'])
+          && request.resource.data.estado == 'pendiente' && request.resource.data.solicitanteUid == request.auth.uid
+          && request.resource.data.creadoEn == request.time && exists(userPath(other)) && exists(userPath(uid)) && mirrored()
+          && !exists(friendPath(other,uid));
+        allow update: if party() && resource.data.estado == 'pendiente'
+          && resource.data.solicitanteUid != request.auth.uid
+          && changedOnly(['estado']) && request.resource.data.estado == 'amigos' && mirrored();
+        allow delete: if party() && !existsAfter(friendPath(other,uid));
+      }
+      match /ratings/{id} {
+        allow read: if signed();
+        allow create: if signed() && request.auth.uid != uid
+          && request.resource.data.keys().hasOnly(['de','deUid','estrellas','tags','partidoId','autorIndice','jugadorIndice','fecha'])
+          && request.resource.data.deUid == request.auth.uid
+          && request.resource.data.de == get(userPath(request.auth.uid)).data.nombre
+          && id == request.resource.data.partidoId+'__'+request.auth.uid
+          && request.resource.data.estrellas is int && request.resource.data.estrellas >= 1 && request.resource.data.estrellas <= 5
+          && request.resource.data.tags is list && request.resource.data.tags.size() <= 3
+          && request.resource.data.tags.toSet().size() == request.resource.data.tags.size() && request.resource.data.tags.hasOnly(['puntual', 'llega_tarde', 'equipo', 'no_pasa', 'buena_onda', 'mala_onda', 'corre', 'no_corre', 'define', 'no_define', 'pases', 'malos_pases', 'habilidoso', 'falta_tecnica', 'limpio', 'brusco', 'ganas', 'sin_ganas'])
+          && request.resource.data.fecha == request.time
+          && finished(get(matchPath(request.resource.data.partidoId)).data)
+          && (get(matchPath(request.resource.data.partidoId)).data.creadorUid == request.auth.uid || memberAt(get(matchPath(request.resource.data.partidoId)).data,request.resource.data.autorIndice,request.auth.uid))
+          && (get(matchPath(request.resource.data.partidoId)).data.creadorUid == uid || memberAt(get(matchPath(request.resource.data.partidoId)).data,request.resource.data.jugadorIndice,uid))
+          && getAfter(userPath(uid)).data.ultimaOpinionId == id
+          && getAfter(matchPath(request.resource.data.partidoId)).data.ultimaCalificacion == {'autorUid':request.auth.uid,'targetUid':uid,'opinionId':id};
+        allow update,delete: if false;
+      }
+      match /notificaciones/{id} {
+        function own() { return signed() && uid == request.auth.uid; }
+        function friendNotice(n) {
+          let f=getAfter(friendPath(request.auth.uid,uid)).data;
+          return n.deUid == request.auth.uid && uid != request.auth.uid
+            && ((n.tipo == 'amistad_solicitud' && id == 'amistad_'+request.auth.uid && f.estado == 'pendiente' && f.solicitanteUid == request.auth.uid)
+              || (n.tipo == 'amistad_aceptada' && id == 'amistad_aceptada_'+request.auth.uid && f.estado == 'amigos' && f.solicitanteUid == uid));
+        }
+        function sharedNotice(n) {
+          return n.deUid == request.auth.uid && uid != request.auth.uid
+            && get(friendPath(uid,request.auth.uid)).data.estado == 'amigos'
+            && get(friendPath(request.auth.uid,uid)).data.estado == 'amigos'
+            && upcoming(get(matchPath(n.partidoId)).data)
+            && id == n.partidoId+'_compartido_'+request.auth.uid+'_'+string(get(matchPath(n.partidoId)).data.get('versionHorario',0));
+        }
+        function matchNotice(n) {
+          let p=get(matchPath(n.partidoId)).data;
+          let targetConfirmed=uid == p.creadorUid || at(p.get('confirmados',[]),n.get('receptorConfirmado',-1),uid);
+          let targetRequested=at(p.get('solicitudes',[]),n.get('receptorSolicitud',-1),uid);
+          return n.emisorUid == request.auth.uid && (
+            (n.tipo == 'cancelado' && (request.auth.uid == p.creadorUid || admin()) && (targetConfirmed || targetRequested) && !existsAfter(matchPath(n.partidoId)))
+            || (n.tipo == 'aceptado' && request.auth.uid == p.creadorUid && targetRequested && member(getAfter(matchPath(n.partidoId)).data,uid))
+            || (n.tipo == 'rechazado' && request.auth.uid == p.creadorUid && targetRequested && getAfter(matchPath(n.partidoId)).data.solicitudes.size() < p.solicitudes.size())
+            || (n.tipo in ['reprogramado','solicitud_reprogramada'] && request.auth.uid == p.creadorUid && (targetConfirmed || targetRequested)
+              && getAfter(matchPath(n.partidoId)).data.versionHorario == p.get('versionHorario',0)+1)
+            || (n.tipo == 'solicitud' && uid == p.creadorUid && upcoming(p) && n.solicitanteUid == request.auth.uid
+              && getAfter(matchPath(n.partidoId)).data.solicitudes.size() == p.get('solicitudes',[]).size()+1
+              && getAfter(matchPath(n.partidoId)).data.solicitudes[p.get('solicitudes',[]).size()].uid == request.auth.uid)
+            || (n.tipo in ['bajada','respuesta_horario'] && uid == p.creadorUid
+              && getAfter(matchPath(n.partidoId)).data.participanteModificado.uid == request.auth.uid
+              && getAfter(matchPath(n.partidoId)).data.confirmados != p.confirmados)
+            || (n.tipo == 'solicitud_vencida' && uid == request.auth.uid && !upcoming(p) && targetRequested && getAfter(matchPath(n.partidoId)).data.solicitudRetirada.uid == uid && getAfter(matchPath(n.partidoId)).data.solicitudes.size() < p.solicitudes.size())
+            || (n.tipo == 'calificar' && uid == request.auth.uid && finished(p) && member(p,uid) && !exists(/databases/$(database)/documents/usuarios/$(uid)/partidosContados/$(n.partidoId)) && existsAfter(/databases/$(database)/documents/usuarios/$(uid)/partidosContados/$(n.partidoId))));
+        }
+        function tagNotice(n) {
+          let r=getAfter(ratingPath(uid,n.opinionId)).data;
+          return n.emisorUid == request.auth.uid && r.deUid == request.auth.uid && !exists(ratingPath(uid,n.opinionId))
+            && n.tagId in ['llega_tarde','no_pasa','mala_onda','no_corre','no_define','malos_pases','falta_tecnica','brusco','sin_ganas'] && n.tagId in r.tags && getAfter(userPath(uid)).data.tagContadores[n.tagId] % 3 == 0;
+        }
+        function validNotice() {
+          let n=request.resource.data;
+          return signed() && n.keys().hasOnly(['tipo','texto','visto','creadoEn','partidoId','deUid','solicitanteUid','versionHorario','emisorUid','receptorConfirmado','receptorSolicitud','opinionId','tagId'])
+            && n.texto is string && n.texto.size() <= 3000 && n.visto == false && n.creadoEn == request.time
+            && (n.tipo in ['amistad_solicitud','amistad_aceptada'] ? friendNotice(n)
+              : n.tipo == 'partido_compartido' ? sharedNotice(n)
+              : n.tipo == 'tag_malo' ? tagNotice(n) : matchNotice(n));
+        }
+        allow list: if own();
+        allow get: if own() || (signed() && id.matches('.*_compartido_'+request.auth.uid+'_[0-9]+') && get(friendPath(uid,request.auth.uid)).data.estado == 'amigos');
+        allow create: if validNotice();
+        allow update: if (own() && changedOnly(['visto']) && request.resource.data.visto == true) || (request.resource.data.tipo != 'partido_compartido' && validNotice());
+        allow delete: if own();
+      }
+    }
+    function matchValid(p) {
+      return p.tipo in ['5','7','11',5,7,11] && p.max == int(p.tipo)*2
+        && p.jugadores is int && p.jugadores >= p.confirmados.size() && p.jugadores <= p.max && p.jugadores >= 1
+        && p.confirmados is list && p.confirmados.size() <= p.max && p.solicitudes is list
+        && p.precio is number && p.precio >= 0 && p.inicioTimestamp is number && p.finTimestamp is number
+        && p.finTimestamp > p.inicioTimestamp && p.finTimestamp-p.inicioTimestamp <= 7200000;
+    }
+    function ownerUpdate() {
+      let p=resource.data;let n=request.resource.data;
+      return request.auth.uid == p.creadorUid && matchValid(n)
+        && ((changedOnly(['jugadores','confirmados','solicitudes']) && upcoming(p))
+          || (changedOnly(['ocultoCreador']) && n.ocultoCreador == true)
+          || (changedOnly(['fecha','hora','inicioTimestamp','finTimestamp','confirmados','solicitudes','versionHorario','horarioAnterior','notifRatingEnviada'])
+            && upcoming(p) && upcoming(n) && n.versionHorario == p.get('versionHorario',0)+1
+            && n.notifRatingEnviada == false && n.solicitudes.size() == 0));
+    }
+    function ownRequest() {
+      let p=resource.data;let n=request.resource.data;let old=p.get('solicitudes',[]);let next=n.solicitudes;
+      return (changedOnly(['solicitudes']) && upcoming(p) && p.jugadores < p.max && request.auth.uid != p.creadorUid
+          && next.size() == old.size()+1 && next[next.size()-1].uid == request.auth.uid
+          && next[next.size()-1].keys().hasOnly(['uid','nombre','posicion'])
+          && next[next.size()-1].nombre == get(userPath(request.auth.uid)).data.nombre
+          && next.removeAll([next[next.size()-1]]) == old)
+        || (changedOnly(['solicitudes','solicitudRetirada']) && n.solicitudRetirada.uid == request.auth.uid
+          && n.solicitudRetirada in old && next == old.removeAll([n.solicitudRetirada]));
+    }
+    function ownParticipation() {
+      let p=resource.data;let n=request.resource.data;let old=n.participanteModificado;
+      let without=p.confirmados.removeAll([old]);
+      return changedOnly(['confirmados','jugadores','participanteModificado']) && upcoming(p)
+        && old.uid == request.auth.uid && request.auth.uid != p.creadorUid && old in p.confirmados
+        && ((n.confirmados == without && n.jugadores == p.jugadores-1
+              && (old.get('pendienteReconfirmar',false) || p.inicioTimestamp-now() >= 3600000))
+          || (old.get('pendienteReconfirmar',false) && n.jugadores == p.jugadores
+            && n.confirmados.size() == p.confirmados.size()
+            && n.confirmados.toSet().difference(without.toSet()) == [{'nombre':old.nombre,'uid':old.uid,'pendienteReconfirmar':false}].toSet()
+            && n.confirmados.toSet().hasAll(without.toSet())));
+    }
+    function ratingMatch(id) {
+      let n=request.resource.data;let a=n.ultimaCalificacion;
+      let before=resource.data.get('calificacionesPorUid',{});let after=n.calificacionesPorUid;
+      let name=get(userPath(request.auth.uid)).data.nombre;
+      return changedOnly(['calificacionesPorUid','calificaciones','ultimaCalificacion'])
+        && a.autorUid == request.auth.uid && finished(resource.data)
+        && a.opinionId == id+'__'+request.auth.uid && !exists(ratingPath(a.targetUid,a.opinionId))
+        && getAfter(ratingPath(a.targetUid,a.opinionId)).data.deUid == request.auth.uid
+        && after.diff(before).affectedKeys().hasOnly([request.auth.uid])
+        && after[request.auth.uid].toSet() == before.get(request.auth.uid,[]).toSet().union([a.targetUid].toSet())
+        && n.calificaciones.diff(resource.data.get('calificaciones',{})).affectedKeys().hasOnly([name]);
+    }
+    match /partidos/{id} {
+      allow read: if signed();
+      allow create: if signed() && request.resource.data.keys().hasOnly(['cancha','canchaId','canchaFoto','canchaDireccion','canchaLat','canchaLng','canchaZona','hora','fecha','tipo','duracion','inicioTimestamp','finTimestamp','jugadores','max','precio','creador','creadorUid','solicitudes','confirmados','mensajes','estado','creadoEn'])
+        && request.resource.data.creadorUid == request.auth.uid && request.resource.data.creador == get(userPath(request.auth.uid)).data.nombre
+        && request.resource.data.creadoEn == request.time && upcoming(request.resource.data) && matchValid(request.resource.data)
+        && request.resource.data.jugadores < request.resource.data.max && request.resource.data.solicitudes == []
+        && request.resource.data.confirmados == [{'uid':request.auth.uid,'nombre':request.resource.data.creador}];
+      allow update: if signed() && (ownerUpdate() || ownRequest() || ownParticipation() || ratingMatch(id)
+        || (changedOnly(['ocultoParaUid']) && request.resource.data.ocultoParaUid.toSet() == resource.data.get('ocultoParaUid',[]).toSet().union([request.auth.uid].toSet())));
+      allow delete: if signed() && (resource.data.creadorUid == request.auth.uid || admin());
+      match /mensajes/{message} {
+        allow read: if signed() && member(get(matchPath(id)).data,request.auth.uid);
+        allow create: if signed() && member(get(matchPath(id)).data,request.auth.uid)
+          && request.resource.data.keys().hasOnly(['nombre','uid','texto','hora'])
+          && request.resource.data.uid == request.auth.uid && request.resource.data.nombre == get(userPath(request.auth.uid)).data.nombre
+          && request.resource.data.hora == request.time && request.resource.data.texto is string
+          && request.resource.data.texto.size() > 0 && request.resource.data.texto.size() <= 4000;
+        allow update,delete: if false;
+      }
+    }
+    match /reportes/{id} {
+      allow get: if admin() || (signed() && id.matches(request.auth.uid+'_(partido|usuario)_.+'));
+      allow list: if admin();
+      allow create: if signed() && request.resource.data.keys().hasOnly(['tipo','objetivoId','nombre','autorUid','motivo','detalle','estado','creadoEn'])
+        && request.resource.data.autorUid == request.auth.uid && request.resource.data.tipo in ['partido','usuario']
+        && id == request.auth.uid+'_'+request.resource.data.tipo+'_'+request.resource.data.objetivoId
+        && request.resource.data.estado == 'pendiente' && request.resource.data.creadoEn == request.time
+        && request.resource.data.nombre is string && request.resource.data.nombre.size() <= 120
+        && request.resource.data.detalle is string && request.resource.data.detalle.size() <= 500
+        && request.resource.data.motivo in ['Conducta inapropiada','Información falsa','Spam','Otro motivo']
+        && (request.resource.data.tipo == 'usuario' ? (request.resource.data.objetivoId != request.auth.uid && exists(userPath(request.resource.data.objetivoId)))
+          : get(matchPath(request.resource.data.objetivoId)).data.creadorUid != request.auth.uid);
+      allow update: if admin() && changedOnly(['estado','revisadoPor','revisadoEn']) && resource.data.estado == 'pendiente'
+        && request.resource.data.estado == 'revisado' && request.resource.data.revisadoPor == request.auth.uid && request.resource.data.revisadoEn == request.time;
+      allow delete: if false;
+    }
+    match /{document=**} { allow read,write: if false; }
+  }
+}
