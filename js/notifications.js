@@ -26,7 +26,7 @@ function participa(p){
   return (p.confirmados||[]).some(c=>typeof c==='string'?c===state.perfil?.nombre:c.uid?c.uid===state.usuario?.uid:c.nombre===state.perfil?.nombre);
 }
 function etiquetaNotificacion(n){
-  const etiquetas={solicitud:'Solicitud para unirse',aceptado:'Solicitud aceptada',rechazado:'Solicitud rechazada',cancelado:'Partido cancelado',bajada:'Jugador se bajó',calificar:'Calificá a tus compañeros',tag_malo:'Tu reputación',solicitud_vencida:'Solicitud vencida',solicitud_reprogramada:'Solicitud cancelada por cambio de horario',respuesta_horario:'Respuesta al nuevo horario',reprogramado:'Confirmá el nuevo horario'};
+  const etiquetas={amistad_solicitud:'Solicitud de amistad',amistad_aceptada:'Nuevo amigo',partido_compartido:'Te compartieron un partido',solicitud:'Solicitud para unirse',aceptado:'Solicitud aceptada',rechazado:'Solicitud rechazada',cancelado:'Partido cancelado',bajada:'Jugador se bajó',calificar:'Calificá a tus compañeros',tag_malo:'Tu reputación',solicitud_vencida:'Solicitud vencida',solicitud_reprogramada:'Solicitud cancelada por cambio de horario',respuesta_horario:'Respuesta al nuevo horario',reprogramado:'Confirmá el nuevo horario'};
   const p = state.partidos.find(p=>p.id===n.partidoId);
   if(n.tipo==='reprogramado' && p){
     if(n.versionHorario!==p.versionHorario) return 'Cambio de horario anterior';
@@ -108,6 +108,8 @@ window.abrirNotificacion=async id=>{
       } catch(e){window.mostrarAviso('No se pudo marcar como leída. Podés abrirla igual.');}
     }
     if(state.usuario?.uid!==uid) return;
+    if(n.tipo==='amistad_solicitud' || n.tipo==='amistad_aceptada'){window.verAmigos();return;}
+    if(n.tipo==='partido_compartido'){await window.abrirPartidoCompartido(n.partidoId);return;}
     if(n.tipo==='tag_malo'){verMiPerfil();return;}
     if(['cancelado','rechazado','solicitud_vencida'].includes(n.tipo)){
       window.mostrarAviso(n.texto||'Esta solicitud ya no está pendiente.');
