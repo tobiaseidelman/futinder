@@ -20,6 +20,7 @@ function iniciarPartidos(){
     }
     chequearPartidosFinalizados();
     revisarVencimientos();
+    window.procesarEnlaceCompartido?.();
   });
 }
 
@@ -1015,6 +1016,7 @@ window.verInfoPartido = (i) => {
       <button onclick="abrirChatIdx(${i})" style="width:100%;padding:14px;background:#001a00;color:var(--green);border:1px solid var(--green);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;">
         💬 Ir al chat
       </button>
+      <button class="social-share-link" data-id="${escaparJugador(p.id)}" onclick="compartirPartido(this.dataset.id)">↗ Compartir partido</button>
       ${getBajarseBtnHTML(p, i)}
     </div>`;
 
