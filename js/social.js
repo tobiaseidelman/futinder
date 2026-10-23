@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { getEstadoPartido } from './matches.js';
 import { db, doc, collection, query, where, orderBy, onSnapshot, getDoc, runTransaction, serverTimestamp } from './firebase.js';
 import { getDocs, limit } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { fechaPartido, confirmarAccion } from './navigation.js';
@@ -192,6 +193,7 @@ window.compartirPartidoActual=()=>{
 window.compartirPartido=partidoId=>{
   const p=state.partidos.find(p=>p.id===partidoId);
   if(!p||!state.usuario) return;
+  if(getEstadoPartido(p) !== 'activo'){window.mostrarAviso('Solo podés compartir partidos que todavía no empezaron.');return;}
   cerrarCompartir?.();
   const uid=state.usuario.uid,url=urlPartido(partidoId);
   const dialogo=document.createElement('dialog');dialogo.className='social-dialog';
@@ -201,7 +203,14 @@ window.compartirPartido=partidoId=>{
   const mensaje='¿Jugamos? '+p.cancha+' · '+fechaPartido(p.fecha)+' a las '+p.hora;
   const enlace=document.createElement('input');enlace.className='form-input';enlace.readOnly=true;enlace.value=url;enlace.setAttribute('aria-label','Enlace del partido');
   const acciones=document.createElement('div');acciones.className='social-actions';acciones.style.margin='14px 0';
+  const puedeCompartir=()=>{
+    const actual=state.partidos.find(partido=>partido.id===partidoId);
+    if(actual && getEstadoPartido(actual)==='activo') return true;
+    window.mostrarAviso('Este partido ya no está disponible para compartir.');
+    cerrarCompartir?.();return false;
+  };
   acciones.append(boton('Compartir enlace',async()=>{
+    if(!puedeCompartir()) return;
     if(navigator.share){
       try{await navigator.share({title:'Partido en '+p.cancha,text:mensaje,url});return;}
       catch(e){if(e.name==='AbortError') return;}
@@ -209,6 +218,7 @@ window.compartirPartido=partidoId=>{
     try{await navigator.clipboard.writeText(url);window.mostrarAviso('Enlace copiado.','success');}
     catch{enlace.focus();enlace.select();window.mostrarAviso('Mantené presionado el enlace para copiarlo.');}
   },true),boton('Copiar link',async()=>{
+    if(!puedeCompartir()) return;
     try{await navigator.clipboard.writeText(url);window.mostrarAviso('Enlace copiado.','success');}
     catch{enlace.focus();enlace.select();window.mostrarAviso('Mantené presionado el enlace para copiarlo.');}
   }));
@@ -234,6 +244,7 @@ window.compartirPartido=partidoId=>{
         if(!amistad.exists()||amistad.data().estado!=='amigos'||!reciproca.exists()||reciproca.data().estado!=='amigos') throw new Error('Solo podés enviar partidos a tus amigos.');
         if(!partido.exists()) throw new Error('Este partido ya no está disponible.');
         const actual=partido.data();
+        if(getEstadoPartido(actual) !== 'activo') throw new Error('Solo podés enviar partidos que todavía no empezaron.');
         const ref=doc(db,'usuarios',amigo.uid,'notificaciones',partidoId+'_compartido_'+uid+'_'+(actual.versionHorario||0));
         const previo=await tx.get(ref);if(previo.exists()) return;
         tx.set(ref,{tipo:'partido_compartido',partidoId,deUid:uid,
