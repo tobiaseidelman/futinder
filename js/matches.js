@@ -10,7 +10,8 @@ function iniciarPartidos(){
   const q = query(collection(db, "partidos"), orderBy("creadoEn", "desc"));
   state.partidosUnsub = onSnapshot(q, (snap) => {
     const abiertoId = state.partidos[state.idx]?.id;
-    state.partidos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    state.partidos = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+    if(document.getElementById("adminPanel")?.classList.contains("active")) window.renderAdminPanel?.();
     if(document.getElementById("home").classList.contains("active")) render();
     if(document.getElementById("misPartidos").classList.contains("active")) renderTabPartidos();
     const abiertoIdx = state.partidos.findIndex(p => p.id === abiertoId);
@@ -59,6 +60,7 @@ function revisarVencimientos(){
   const firma = state.partidos.map(p=>p.id+':'+getEstadoPartido(p)).join('|');
   if(firma !== estadosTemporales){
     estadosTemporales = firma;
+    if(document.getElementById('adminPanel')?.classList.contains('active')) window.renderAdminPanel?.();
     const i = state.idx;
     if(document.getElementById('home').classList.contains('active')) render();
     else if(document.getElementById('misPartidos').classList.contains('active')) renderTabPartidos();
@@ -1023,6 +1025,7 @@ window.verInfoPartido = (i) => {
         💬 Ir al chat
       </button>
       ${getEstadoPartido(p) === 'activo' ? `<button class="social-share-link" data-id="${escaparJugador(p.id)}" onclick="compartirPartido(this.dataset.id)">↗ Compartir partido</button>` : ''}
+      <button class="social-share-link" style="color:var(--text-muted)" data-id="${escaparJugador(p.id)}" onclick="reportarPartido(this.dataset.id)">Reportar partido</button>
       ${getBajarseBtnHTML(p, i)}
     </div>`;
 
