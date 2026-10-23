@@ -36,6 +36,12 @@
 .social-dialog h2{font-size:21px;margin:0 0 10px}
 .social-dialog input{font-size:16px}
 .social-dialog button:focus-visible,#amigos button:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+</style><style>
+#amigos .friends-tabs{margin-bottom:22px;gap:8px}
+#amigos .friends-tabs button{flex:1;white-space:nowrap}
+#amigos .friends-tabs button[aria-pressed=true]{color:var(--green);background:#182b12;border-color:#355328}
+#cantidadSolicitudesAmistad{display:inline-block;min-width:16px;padding:1px 5px;margin-left:4px;border-radius:10px;background:#ffffff12;font-size:11px}
+#buscadorAmigos[hidden]{display:none!important}
 </style></head>
 <body>
 
@@ -409,12 +415,18 @@
 <div id="amigos" class="screen">
   <div class="topbar"><button class="back-btn" onclick="verMiPerfil()" aria-label="Volver al perfil">←</button><div class="topbar-title">Amigos</div><div style="width:42px"></div></div>
   <div class="social-body">
+    <div class="social-actions friends-tabs" role="group" aria-label="Secciones de amigos">
+      <button type="button" class="social-action" id="tabMisAmigos" aria-pressed="true" onclick="mostrarTabAmigos('amigos')">Mis amigos</button>
+      <button type="button" class="social-action" id="tabSolicitudesAmigos" aria-pressed="false" onclick="mostrarTabAmigos('solicitudes')">Solicitudes <span id="cantidadSolicitudesAmistad">0</span></button>
+    </div>
+    <div id="buscadorAmigos">
     <label class="form-label" for="buscarAmigoInput">Buscar jugadores</label>
     <form onsubmit="event.preventDefault();buscarAmigos()">
       <div style="display:flex;gap:8px"><input class="form-input" style="min-width:0;font-size:16px" id="buscarAmigoInput" placeholder="Nombre en Futinder" maxlength="80" autocomplete="off"><button class="social-action" id="buscarAmigoBtn" type="submit">Buscar</button></div>
     </form>
     <p class="social-help">Escribí el nombre como aparece en su perfil. También podés buscar por las primeras letras.</p>
     <div id="resultadosAmigos" aria-live="polite"></div>
+    </div>
     <div id="listaAmigos" aria-live="polite"></div>
   </div>
 </div>
