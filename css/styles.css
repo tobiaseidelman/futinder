@@ -434,3 +434,7 @@ body.chat-abierto { overflow:hidden; }
 #notificaciones .notif-empty-icon{display:grid;place-items:center;width:56px;height:56px;margin:auto;border:1px solid #304328;border-radius:20px;background:#172013;color:var(--green);font-size:26px}
 #notificaciones .notif-empty h2{font-size:18px;font-weight:600;margin:20px 0 8px}
 #notificaciones .notif-empty p{font-size:13px;line-height:1.6;color:var(--text-muted);max-width:260px;margin:auto}
+
+/* Cinco destinos principales con espacios iguales en celular. */
+.navbar .nav-btn{flex:1 1 0;min-width:0;min-height:60px;white-space:nowrap}
+#amigos .social-body{padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
