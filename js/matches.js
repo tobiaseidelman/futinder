@@ -348,8 +348,8 @@ window.abrirPerfilSolicitud = elemento => {
 
 function getConfirmadoItemHTML(c, p, estado){
   let nombre = nombreDeConfirmado(c);
-  let esYo = nombre === state.perfil.nombre;
-  let esCreador = nombre === p.creador;
+  let esYo = uidDeConfirmado(c) ? uidDeConfirmado(c) === state.usuario.uid : nombre === state.perfil.nombre;
+  let esCreador = uidDeConfirmado(c) ? uidDeConfirmado(c) === p.creadorUid : nombre === p.creador;
   const jugadorUid = uidDeConfirmado(c) || (esCreador ? p.creadorUid : null);
   let yaCalifique = ((p.calificacionesPorUid||{})[encodeURIComponent(state.usuario.uid)]||[]).includes(jugadorUid) || ((p.calificaciones||{})[state.perfil.nombre]||[]).includes(nombre);
   const pendiente = typeof c === 'object' && c.pendienteReconfirmar;
@@ -359,12 +359,15 @@ function getConfirmadoItemHTML(c, p, estado){
       ? `<span style="color:var(--green);font-size:12px;white-space:nowrap;">✅ Calificado</span>`
       : `<button onclick="abrirModalRating('${nombre}','${p.id}','${p.creadorUid}')" style="background:var(--surface2);border:1px solid #333;border-radius:8px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">⭐ Calificar</button>`;
   }
-  return `<div class="confirmado-item" style="justify-content:space-between;">
+  if(estado === 'finalizado' && !esYo && !pendiente && !esperaReconfirmacion(p) && jugadorUid){
+    accion += '<button type="button" class="social-action" style="font-size:12px;min-height:44px;" data-amigo-partido="' + escaparJugador(jugadorUid) + '" disabled>Cargando…</button>';
+  }
+  return `<div class="confirmado-item" style="justify-content:space-between;flex-wrap:wrap;gap:10px;">
     <div style="display:flex;align-items:center;gap:12px;">
       ${avatarJugadorHTML(uidDeConfirmado(c) || (esCreador ? p.creadorUid : null), nombre)}
       <div>${nombre}${esCreador?` <span style="background:#003300;color:var(--green);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:4px;">👨‍🔧 Creador</span>`:''}</div>
     </div>
-    ${accion}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${accion}</div>
   </div>`;
 }
 
@@ -682,6 +685,7 @@ window.verDetalle = (i) => {
       </div>`).join('');
   document.getElementById("listaSolicitudes").innerHTML = htmlSol;
 
+  window.actualizarBotonesAmistad?.();
   void cargarAvataresJugadores(document.getElementById("listaConfirmados"));
   void cargarAvataresJugadores(document.getElementById("listaSolicitudes"));
   cambiarPantalla("creador");
@@ -1020,6 +1024,7 @@ window.verInfoPartido = (i) => {
       ${getBajarseBtnHTML(p, i)}
     </div>`;
 
+  window.actualizarBotonesAmistad?.();
   void cargarAvataresJugadores(document.getElementById("infoPartidoContent"));
   cambiarPantalla("infoPartido");
 };
