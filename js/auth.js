@@ -18,6 +18,7 @@ window.cerrarSesion = async () => {
   if(state.notifUnsub) state.notifUnsub();
   if(state.partidosUnsub) state.partidosUnsub();
   if(state.chatUnsub) state.chatUnsub();
+  window.detenerSocial?.();
   reiniciarPermisosSesion();
   state.perfil = null; state.usuario = null; state.partidos = []; state.notificaciones = [];
   await signOut(auth);
@@ -29,6 +30,7 @@ function iniciarAuth(){
   return onAuthStateChanged(auth, async (user) => {
   document.getElementById("loading").style.display = "none";
   if(!user){
+    window.detenerSocial?.();
     reiniciarPermisosSesion();
     cambiarPantalla("login");
     return;
@@ -39,6 +41,7 @@ function iniciarAuth(){
   const perfilSnap = await getDoc(perfilRef);
   if(perfilSnap.exists()){
     state.perfil = perfilSnap.data();
+    window.iniciarSocial?.();
     iniciarPartidos();
     iniciarNotificaciones();
     if(esAdmin()) document.getElementById("adminBtn").style.display = "flex";
