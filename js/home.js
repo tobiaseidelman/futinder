@@ -268,6 +268,7 @@ window.render = () => {
           <span style="color:var(--text-muted)">›</span>
         </div>
       ${getEstadoPartido(p) === 'activo' ? `<button class="social-share-link" data-id="${textoTarjeta(p.id)}" onclick="compartirPartido(this.dataset.id)">↗ Compartir partido</button>` : ''}
+        ${p.creadorUid !== state.usuario?.uid ? `<button class="social-share-link" style="color:var(--text-muted)" data-id="${textoTarjeta(p.id)}" onclick="reportarPartido(this.dataset.id)">Reportar partido</button>` : ''}
         <div class="card-actions">
 ${compartido ? accionesCompartidas(p) : pendiente
             ? '<button class="action-btn btn-no" style="width:100%;font-size:16px;" onclick="cancelarSolicitudTarjeta(this)">Cancelar solicitud</button>'
