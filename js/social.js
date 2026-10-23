@@ -59,20 +59,29 @@ async function dibujarUsuario(parent,uid,datos){
   fila.append(acciones);
 }
 let renderGeneracion=0;
+let tabAmigos='amigos';
+window.mostrarTabAmigos=tab=>{
+  tabAmigos=tab==='solicitudes'?'solicitudes':'amigos';
+  void renderAmigos();
+};
 async function renderAmigos(){
   const uid=socialUid,version=++renderGeneracion;
   if(!uid || state.usuario?.uid!==uid) return;
   const cont=document.getElementById('listaAmigos');
   cont.replaceChildren();
-  const grupos=[
-    ['Solicitudes recibidas',relaciones.filter(r=>r.estado==='pendiente'&&r.solicitanteUid!==uid)],
-    ['Mis amigos',relaciones.filter(r=>r.estado==='amigos')],
+  const recibidas=relaciones.filter(r=>r.estado==='pendiente'&&r.solicitanteUid!==uid);
+  document.getElementById('cantidadSolicitudesAmistad').textContent=String(recibidas.length);
+  document.getElementById('tabMisAmigos').setAttribute('aria-pressed',String(tabAmigos==='amigos'));
+  document.getElementById('tabSolicitudesAmigos').setAttribute('aria-pressed',String(tabAmigos==='solicitudes'));
+  document.getElementById('buscadorAmigos').hidden=tabAmigos!=='amigos';
+  const grupos=tabAmigos==='solicitudes' ? [
+    ['Solicitudes de amistad',recibidas],
     ['Solicitudes enviadas',relaciones.filter(r=>r.estado==='pendiente'&&r.solicitanteUid===uid)]
-  ];
+  ] : [['Mis amigos',relaciones.filter(r=>r.estado==='amigos')]];
   for(const [titulo,items] of grupos){
-    if(!items.length && titulo!=='Mis amigos') continue;
+    if(!items.length && titulo==='Solicitudes enviadas') continue;
     encabezado(cont,titulo+' · '+items.length);
-    if(!items.length) texto(cont,'Buscá a tus amigos para compartir partidos con ellos.');
+    if(!items.length) texto(cont,titulo==='Solicitudes de amistad'?'No tenés solicitudes pendientes. Todas las solicitudes de amistad que recibas van a aparecer acá.':'Buscá a tus amigos para compartir partidos con ellos.');
     for(const r of items){
       try{
         const datos=await perfilDe(r.uid);
@@ -83,12 +92,13 @@ async function renderAmigos(){
   }
   const resultados=document.getElementById('resultadosAmigos');
   resultados.replaceChildren();
-  if(busqueda.length){
+  if(busqueda.length && tabAmigos==='amigos'){
     encabezado(resultados,'Resultados');
     for(const u of busqueda) await dibujarUsuario(resultados,u.uid,u.datos);
   }
 }
 window.detenerSocial=()=>{
+  tabAmigos='amigos';
   unsubscribe?.();unsubscribe=null;socialUid=null;relaciones=[];busqueda=[];perfiles.clear();buscando++;renderGeneracion++;
   cerrarCompartir?.();
   const buscar=document.getElementById('buscarAmigoBtn');if(buscar){buscar.disabled=false;buscar.textContent='Buscar';}
@@ -106,9 +116,10 @@ window.iniciarSocial=()=>{
     if(socialUid===uid) window.mostrarAviso('No pudimos cargar Amigos. Revisá la conexión y los permisos de Firebase.','error');
   });
 };
-window.verAmigos=()=>{
+window.verAmigos=(tab='amigos')=>{
   if(!state.usuario||!state.perfil) return;
   if(socialUid!==state.usuario.uid) window.iniciarSocial();
+  tabAmigos=tab==='solicitudes'?'solicitudes':'amigos';
   window.cambiarPantalla('amigos');void renderAmigos();
 };
 window.buscarAmigos=async()=>{
