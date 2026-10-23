@@ -281,22 +281,25 @@ window.actualizarBotonesAmistad=()=>{
   for(const b of document.querySelectorAll('[data-amigo-partido]')){
     const otro=b.dataset.amigoPartido;
     b.onclick=null;
-    if(!amistadesCargadas || socialUid!==state.usuario?.uid){b.textContent='Cargando…';b.disabled=true;continue;}
+    const mostrar=(icono,etiqueta)=>{
+      b.textContent=icono;b.title=etiqueta;b.setAttribute('aria-label',etiqueta);
+    };
+    if(!amistadesCargadas || socialUid!==state.usuario?.uid){mostrar('…','Cargando amistad');b.disabled=true;continue;}
     const r=relacion(otro);
     b.disabled=false;
-    if(r?.estado==='amigos'){b.textContent='✓ Amigos';b.disabled=true;}
-    else if(r?.estado==='pendiente' && r.solicitanteUid===socialUid){b.textContent='Solicitud enviada';b.disabled=true;}
+    if(r?.estado==='amigos'){mostrar('✓','Ya son amigos');b.disabled=true;}
+    else if(r?.estado==='pendiente' && r.solicitanteUid===socialUid){mostrar('⏳','Solicitud de amistad enviada');b.disabled=true;}
     else if(r?.estado==='pendiente'){
-      b.textContent='Ver solicitud';
+      mostrar('📩','Ver solicitud de amistad recibida');
       b.onclick=()=>window.verAmigos('solicitudes');
     }else{
-      b.textContent='＋ Agregar amigo';
+      mostrar('👥','Agregar amigo');
       b.onclick=async()=>{
         if(b.disabled) return;
-        b.disabled=true;b.textContent='Enviando…';
+        b.disabled=true;mostrar('…','Enviando solicitud de amistad');
         try{
           await cambiarAmistad(otro,'solicitar');
-          b.textContent='Solicitud enviada';b.disabled=true;
+          mostrar('⏳','Solicitud de amistad enviada');b.disabled=true;
         }catch(e){avisoError(e);window.actualizarBotonesAmistad();}
       };
     }
