@@ -3,7 +3,7 @@ import { state } from './state.js';
 import { iniciarPartidos } from './matches.js';
 import { iniciarNotificaciones } from './notifications.js';
 import { pedirPermisosSesion, reiniciarPermisosSesion } from './location.js';
-import { esAdmin } from './admin.js';
+import './admin.js';
 
 // ---- LOGIN CON GOOGLE ----
 window.loginGoogle = async () => {
@@ -21,6 +21,7 @@ window.cerrarSesion = async () => {
   window.detenerSocial?.();
   reiniciarPermisosSesion();
   state.perfil = null; state.usuario = null; state.partidos = []; state.notificaciones = [];
+  window.actualizarAccesoAdmin?.();
   await signOut(auth);
   cambiarPantalla("login");
 };
@@ -30,12 +31,15 @@ function iniciarAuth(){
   return onAuthStateChanged(auth, async (user) => {
   document.getElementById("loading").style.display = "none";
   if(!user){
+    state.usuario=null; state.perfil=null; state.partidos=[];
+    window.actualizarAccesoAdmin?.();
     window.detenerSocial?.();
     reiniciarPermisosSesion();
     cambiarPantalla("login");
     return;
   }
   state.usuario = user;
+  window.actualizarAccesoAdmin?.();
   // Cargar o crear perfil en Firestore
   const perfilRef = doc(db, "usuarios", user.uid);
   const perfilSnap = await getDoc(perfilRef);
@@ -44,7 +48,7 @@ function iniciarAuth(){
     window.iniciarSocial?.();
     iniciarPartidos();
     iniciarNotificaciones();
-    if(esAdmin()) document.getElementById("adminBtn").style.display = "flex";
+    window.actualizarAccesoAdmin?.();
     cambiarPantalla("home");
   } else {
     // Nuevo usuario — pre-llenar con datos de Google
