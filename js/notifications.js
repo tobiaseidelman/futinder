@@ -108,7 +108,8 @@ window.abrirNotificacion=async id=>{
       } catch(e){window.mostrarAviso('No se pudo marcar como leída. Podés abrirla igual.');}
     }
     if(state.usuario?.uid!==uid) return;
-    if(n.tipo==='amistad_solicitud' || n.tipo==='amistad_aceptada'){window.verAmigos();return;}
+    if(n.tipo==='amistad_solicitud'){window.verAmigos('solicitudes');return;}
+    if(n.tipo==='amistad_aceptada'){window.verAmigos();return;}
     if(n.tipo==='partido_compartido'){await window.abrirPartidoCompartido(n.partidoId);return;}
     if(n.tipo==='tag_malo'){verMiPerfil();return;}
     if(['cancelado','rechazado','solicitud_vencida'].includes(n.tipo)){
