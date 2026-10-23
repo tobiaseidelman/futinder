@@ -108,9 +108,9 @@ window.enviarRating = async () => {
       if(!Number.isFinite(p.finTimestamp) || Date.now() < p.finTimestamp) throw new Error('Podés calificar cuando termine el partido.');
       const calificacionesPorUid = {...porUid,[claveAutor]:[...anteriores,targetUid]};
       const calificaciones = {...(p.calificaciones||{}),[autorNombre]:[...new Set([...legado,nombre])]};
-      tx.set(opinionRef,{de:autorNombre,deUid:autorUid,estrellas,tags,partidoId,fecha:serverTimestamp()});
-      tx.update(partidoRef,{calificacionesPorUid,calificaciones});
-      await actualizarStatsJugador(targetUid,estrellas,tags,tx,perfilSnap.data());
+      tx.set(opinionRef,{de:autorNombre,deUid:autorUid,estrellas,tags,partidoId,autorIndice:(p.confirmados||[]).findIndex(c=>c?.uid===autorUid),jugadorIndice:(p.confirmados||[]).findIndex(c=>c?.uid===targetUid),fecha:serverTimestamp()});
+      tx.update(partidoRef,{calificacionesPorUid,calificaciones,ultimaCalificacion:{autorUid,targetUid,opinionId:opinionRef.id}});
+      await actualizarStatsJugador(targetUid,estrellas,tags,tx,perfilSnap.data(),opinionRef.id);
       return {duplicada:false,p:{...p,calificacionesPorUid,calificaciones}};
     });
     Object.assign(local,resultado.p);
@@ -132,7 +132,7 @@ window.enviarRating = async () => {
   }
 };
 
-async function actualizarStatsJugador(targetUid, estrellas, tags, tx = null, datosPrevios = null){
+async function actualizarStatsJugador(targetUid, estrellas, tags, tx = null, datosPrevios = null, opinionId = null){
   const perfilRef = doc(db, "usuarios", targetUid);
   const snap = datosPrevios ? null : await getDoc(perfilRef);
   if(!datosPrevios && !snap.exists()) return;
@@ -161,7 +161,7 @@ async function actualizarStatsJugador(targetUid, estrellas, tags, tx = null, dat
     // Notificar tags malos en múltiplos de TAG_NOTIF_CADA
     if(tagInfo && tagInfo.tipo === 'malo' && count % TAG_NOTIF_CADA === 0){
       notifsPendientes.push({
-        tipo: 'tag_malo',
+        tipo: 'tag_malo', emisorUid:state.usuario.uid, opinionId, tagId,
         texto: `Recibiste ${count} veces el tag "${tagInfo.emoji} ${tagInfo.label}". ¡Intentá mejorar para la próxima!`,
         visto: false,
         creadoEn: serverTimestamp()
@@ -179,7 +179,9 @@ async function actualizarStatsJugador(targetUid, estrellas, tags, tx = null, dat
     }
   }
 
+  tagsMostrar = TAGS.filter(t => (tagContadores[t.id]||0) >= TAG_UMBRAL && (t.tipo==='bueno' || (tagContadores[t.opuesto]||0) < (tagContadores[t.id]||0)*2)).map(t=>t.id);
   const cambios = {
+    ultimaOpinionId:opinionId,
     calificacionesRecibidas: totalCalificaciones,
     rating: nuevoRating,
     tagContadores,
@@ -245,3 +247,4 @@ window.verOpinionesPropias = () => abrirOpiniones(state.usuario.uid, state.perfi
 
 
 export { ratingActual, tagsSeleccionados, ratingTarget, renderModalRating, actualizarStatsJugador, abrirOpiniones, renderOpiniones };
+
