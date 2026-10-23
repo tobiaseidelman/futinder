@@ -4,6 +4,7 @@ import { getDocs, limit } from 'https://www.gstatic.com/firebasejs/10.12.0/fireb
 import { fechaPartido, confirmarAccion } from './navigation.js';
 
 let socialUid=null, unsubscribe=null, relaciones=[], busqueda=[], buscando=0;
+let amistadesCargadas=false;
 const perfiles=new Map();
 const ocupados=new Set();
 let cerrarCompartir=null;
@@ -99,6 +100,7 @@ async function renderAmigos(){
 }
 window.detenerSocial=()=>{
   tabAmigos='amigos';
+  amistadesCargadas=false;
   unsubscribe?.();unsubscribe=null;socialUid=null;relaciones=[];busqueda=[];perfiles.clear();buscando++;renderGeneracion++;
   cerrarCompartir?.();
   const buscar=document.getElementById('buscarAmigoBtn');if(buscar){buscar.disabled=false;buscar.textContent='Buscar';}
@@ -111,6 +113,8 @@ window.iniciarSocial=()=>{
   unsubscribe=onSnapshot(collection(db,'usuarios',uid,'amistades'),snap=>{
     if(socialUid!==uid||state.usuario?.uid!==uid) return;
     relaciones=snap.docs.map(d=>({...d.data(),uid:d.id}));
+    amistadesCargadas=true;
+    window.actualizarBotonesAmistad();
     if(document.getElementById('amigos').classList.contains('active')) void renderAmigos();
   },()=>{
     if(socialUid===uid) window.mostrarAviso('No pudimos cargar Amigos. Revisá la conexión y los permisos de Firebase.','error');
@@ -271,4 +275,30 @@ window.procesarEnlaceCompartido=async()=>{
     await window.abrirPartidoCompartido(id);
     const url=new URL(window.location.href);url.searchParams.delete('partido');window.history.replaceState(null,'',url);
   }finally{abriendoEnlace=false;}
+};
+
+window.actualizarBotonesAmistad=()=>{
+  for(const b of document.querySelectorAll('[data-amigo-partido]')){
+    const otro=b.dataset.amigoPartido;
+    b.onclick=null;
+    if(!amistadesCargadas || socialUid!==state.usuario?.uid){b.textContent='Cargando…';b.disabled=true;continue;}
+    const r=relacion(otro);
+    b.disabled=false;
+    if(r?.estado==='amigos'){b.textContent='✓ Amigos';b.disabled=true;}
+    else if(r?.estado==='pendiente' && r.solicitanteUid===socialUid){b.textContent='Solicitud enviada';b.disabled=true;}
+    else if(r?.estado==='pendiente'){
+      b.textContent='Ver solicitud';
+      b.onclick=()=>window.verAmigos('solicitudes');
+    }else{
+      b.textContent='＋ Agregar amigo';
+      b.onclick=async()=>{
+        if(b.disabled) return;
+        b.disabled=true;b.textContent='Enviando…';
+        try{
+          await cambiarAmistad(otro,'solicitar');
+          b.textContent='Solicitud enviada';b.disabled=true;
+        }catch(e){avisoError(e);window.actualizarBotonesAmistad();}
+      };
+    }
+  }
 };
