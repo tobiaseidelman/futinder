@@ -1,3 +1,4 @@
+import { evidenciaAviso } from './security.js';
 import { fechaPartido } from './navigation.js';
 import { runTransaction, getDoc, doc, db, updateDoc, addDoc, collection, serverTimestamp } from './firebase.js';
 import { actualizarBadge } from './notifications.js';
@@ -366,7 +367,7 @@ window.match = async (partidoId = null) => {
   enviandoSolicitud = true;
   try {
   // Las imágenes se consultan por UID; no duplicarlas dentro de cada partido.
-  const { foto, portada, portadaY, jugadas, ...perfilSolicitud } = state.perfil;
+  const perfilSolicitud = {nombre:state.perfil.nombre,posicion:state.perfil.posicion};
   const uid = state.usuario.uid;
   await runTransaction(db, async tx => {
     const ref = doc(db,'partidos',p.id), snap = await tx.get(ref);
@@ -378,7 +379,7 @@ window.match = async (partidoId = null) => {
     if((actual.solicitudes||[]).some(s=>s.uid===uid) || (actual.confirmados||[]).some(c=>c.uid===uid)) throw new Error('Ya tenés una solicitud o un lugar en este partido.');
     tx.update(ref,{solicitudes:[...(actual.solicitudes||[]),{...perfilSolicitud,uid}]});
     tx.set(doc(db,'usuarios',actual.creadorUid,'notificaciones',p.id+'_solicitud_'+uid),{
-      tipo:'solicitud',solicitanteUid:uid,texto:perfilSolicitud.nombre+' quiere unirse a '+actual.cancha,
+      ...evidenciaAviso(actual,actual.creadorUid),tipo:'solicitud',solicitanteUid:uid,texto:perfilSolicitud.nombre+' quiere unirse a '+actual.cancha,
       partidoId:p.id,visto:false,creadoEn:serverTimestamp()
     });
   });
@@ -394,3 +395,4 @@ window.match = async (partidoId = null) => {
 
 
 export { startX, isDragging, cardEl, currentX, initSwipe, animateAway, textoTarjeta, fechaTarjeta, cargarCreadorTarjeta };
+
