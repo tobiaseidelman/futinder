@@ -8,6 +8,7 @@ import './admin.js';
 import './chat.js';
 import './notifications.js';
 import './ratings.js';
+import './social.js';
 import { iniciarAuth } from './auth.js';
 
 const hoy = new Date().toISOString().split('T')[0];
