@@ -131,6 +131,7 @@
     <button class="nav-btn active" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
     <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
     <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
+    <button class="nav-btn" onclick="verAmigos()"><span class="nav-icon">👥</span>Amigos</button>
     <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
   </nav>
 </div>
@@ -190,6 +191,7 @@
     <button class="nav-btn" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
     <button class="nav-btn active" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
     <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
+    <button class="nav-btn" onclick="verAmigos()"><span class="nav-icon">👥</span>Amigos</button>
     <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
   </nav>
 </div>
@@ -209,6 +211,7 @@
     <button class="nav-btn" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
     <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
     <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
+    <button class="nav-btn" onclick="verAmigos()"><span class="nav-icon">👥</span>Amigos</button>
     <button class="nav-btn active" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
   </nav>
 </div>
@@ -283,6 +286,7 @@
     <button class="nav-btn" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
     <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
     <button class="nav-btn active" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
+    <button class="nav-btn" onclick="verAmigos()"><span class="nav-icon">👥</span>Amigos</button>
     <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
   </nav>
 </div>
@@ -300,6 +304,7 @@
     <button class="nav-btn" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
     <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
     <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
+    <button class="nav-btn" onclick="verAmigos()"><span class="nav-icon">👥</span>Amigos</button>
     <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
   </nav>
 </div>
@@ -413,7 +418,7 @@
 </div>
 
 <div id="amigos" class="screen">
-  <div class="topbar"><button class="back-btn" onclick="verMiPerfil()" aria-label="Volver al perfil">←</button><div class="topbar-title">Amigos</div><div style="width:42px"></div></div>
+  <div class="topbar"><button class="back-btn" onclick="irHome()" aria-label="Volver al inicio">←</button><div class="topbar-title">Amigos</div><div style="width:42px"></div></div>
   <div class="social-body">
     <div class="social-actions friends-tabs" role="group" aria-label="Secciones de amigos">
       <button type="button" class="social-action" id="tabMisAmigos" aria-pressed="true" onclick="mostrarTabAmigos('amigos')">Mis amigos</button>
@@ -429,6 +434,13 @@
     </div>
     <div id="listaAmigos" aria-live="polite"></div>
   </div>
+  <nav class="navbar">
+    <button class="nav-btn" onclick="irHome()"><span class="nav-icon">🏠</span>Inicio</button>
+    <button class="nav-btn" onclick="cambiarPantalla('crear')"><span class="nav-icon">➕</span>Crear</button>
+    <button class="nav-btn" onclick="verMisPartidos()"><span class="nav-icon">⚽</span>Mis partidos</button>
+    <button class="nav-btn active" aria-current="page" onclick="verAmigos()"><span class="nav-icon">👥</span>Amigos</button>
+    <button class="nav-btn" onclick="verMiPerfil()"><span class="nav-icon">👤</span>Perfil</button>
+  </nav>
 </div>
 <!-- MODAL FILTROS -->
 <div class="modal-overlay" id="modalFiltros" onclick="cerrarFiltros()">
