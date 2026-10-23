@@ -1,6 +1,7 @@
 
 // ---- NAV ----
 window.cambiarPantalla = (id) => {
+  if(id !== 'adminPanel') window.detenerReportesAdmin?.();
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
 };
