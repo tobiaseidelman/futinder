@@ -360,14 +360,14 @@ function getConfirmadoItemHTML(c, p, estado){
       : `<button onclick="abrirModalRating('${nombre}','${p.id}','${p.creadorUid}')" style="background:var(--surface2);border:1px solid #333;border-radius:8px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">⭐ Calificar</button>`;
   }
   if(estado === 'finalizado' && !esYo && !pendiente && !esperaReconfirmacion(p) && jugadorUid){
-    accion += '<button type="button" class="social-action" style="font-size:12px;min-height:44px;" data-amigo-partido="' + escaparJugador(jugadorUid) + '" disabled>Cargando…</button>';
+    accion = '<button type="button" aria-label="Cargando amistad" title="Cargando amistad" style="display:inline-flex;align-items:center;justify-content:center;flex:0 0 36px;width:36px;min-height:44px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--text-muted);font-size:16px;cursor:pointer;" data-amigo-partido="' + escaparJugador(jugadorUid) + '" disabled>…</button>' + accion;
   }
   return `<div class="confirmado-item" style="justify-content:space-between;flex-wrap:wrap;gap:10px;">
-    <div style="display:flex;align-items:center;gap:12px;">
+    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
       ${avatarJugadorHTML(uidDeConfirmado(c) || (esCreador ? p.creadorUid : null), nombre)}
-      <div>${nombre}${esCreador?` <span style="background:#003300;color:var(--green);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:4px;">👨‍🔧 Creador</span>`:''}</div>
+      <div style="min-width:0;overflow-wrap:anywhere;">${nombre}${esCreador?` <span style="background:#003300;color:var(--green);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:4px;">👨‍🔧 Creador</span>`:''}</div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${accion}</div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;flex:0 0 auto;margin-left:auto;">${accion}</div>
   </div>`;
 }
 
