@@ -370,8 +370,7 @@ window.crearPerfil = async () => {
     calificacionesRecibidas: 0,
     uid: state.usuario.uid,
     foto: fotoUrl,
-    jugadas: [],
-    email: state.usuario.email
+    jugadas: []
   };
   await setDoc(doc(db, "usuarios", state.usuario.uid), state.perfil);
   window.iniciarSocial?.();
@@ -529,3 +528,4 @@ window.cerrarModal = () => {visitaPerfil++;document.getElementById("modalJugador
 
 
 export { fotoNuevaFile, comprimirImagen, subirFoto, jugadaSubiendo };
+
