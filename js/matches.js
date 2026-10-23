@@ -1,3 +1,4 @@
+import { evidenciaAviso } from './security.js';
 import { fechaPartido, confirmarAccion } from './navigation.js';
 import { state } from './state.js';
 import { runTransaction, getDoc, query, collection, db, orderBy, onSnapshot, updateDoc, doc, addDoc, serverTimestamp, increment, arrayUnion, deleteDoc } from './firebase.js';
@@ -39,15 +40,15 @@ async function vencerSolicitudes(partidoId){
       if(!snap.exists()) return;
       const p = snap.data();
       if(getEstadoPartido(p) === 'activo' || !(p.solicitudes || []).length) return;
-      const receptores = new Set((p.solicitudes || []).map(s=>s.uid).filter(Boolean));
-      tx.update(ref,{solicitudes:[]});
-      for(const uid of receptores){
-        tx.set(doc(db,'usuarios',uid,'notificaciones',partidoId+'_solicitud_vencida_'+(Number(p.versionHorario)||0)),{
-          tipo:'solicitud_vencida',
-          texto:'Tu solicitud para '+p.cancha+' se canceló automáticamente porque el partido ya empezó y no había sido aceptada.',
-          partidoId,visto:false,creadoEn:serverTimestamp()
-        });
-      }
+      const uid = state.usuario.uid;
+      const solicitud = (p.solicitudes || []).find(s=>s.uid===uid);
+      if(!solicitud) return;
+      tx.update(ref,{solicitudes:p.solicitudes.filter(s=>s.uid!==uid),solicitudRetirada:solicitud});
+      tx.set(doc(db,'usuarios',uid,'notificaciones',partidoId+'_solicitud_vencida_'+(Number(p.versionHorario)||0)),{
+        ...evidenciaAviso(p,uid),tipo:'solicitud_vencida',
+        texto:'Tu solicitud para '+p.cancha+' se canceló automáticamente porque el partido ya empezó y no había sido aceptada.',
+        partidoId,visto:false,creadoEn:serverTimestamp()
+      });
     });
   } catch(e) {
     console.warn('No se pudo actualizar una solicitud vencida; se reintentará.', e.code || '');
@@ -70,7 +71,7 @@ function revisarVencimientos(){
     }
   }
   for(const p of state.partidos){
-    if(getEstadoPartido(p) !== 'activo' && (p.solicitudes || []).length) void vencerSolicitudes(p.id);
+    if(getEstadoPartido(p) !== 'activo' && (p.solicitudes || []).some(s=>s.uid===state.usuario?.uid)) void vencerSolicitudes(p.id);
   }
   void chequearPartidosFinalizados();
   const ahora = Date.now();
@@ -93,32 +94,37 @@ function finPartido(p){
 // ---- DETECTAR PARTIDOS RECIÉN FINALIZADOS: notificar a confirmados y sumar partido jugado ----
 // No hay backend corriendo solo (plan gratis de Firebase), así que esto se dispara
 // cuando cualquier usuario con la app abierta detecta un partido recién finalizado.
-// Se marca notifRatingEnviada:true para no mandar la notificación más de una vez.
+// Cada usuario registra un recibo propio para evitar duplicados; respeta los finales ya procesados por la versión anterior.
 const finalesEnCurso = new Set();
+const finalesProcesados = new Set();
 async function chequearPartidosFinalizados(){
+  const uid=state.usuario?.uid;
+  if(!uid)return;
   for(const partido of state.partidos){
-    if(getEstadoPartido(partido) !== 'finalizado' || partido.notifRatingEnviada || finalesEnCurso.has(partido.id)) continue;
-    finalesEnCurso.add(partido.id);
-    try {
-      await runTransaction(db, async tx => {
-        const ref = doc(db,'partidos',partido.id), snap = await tx.get(ref);
-        if(!snap.exists()) return;
-        const p = snap.data();
-        if(getEstadoPartido(p) !== 'finalizado' || p.notifRatingEnviada) return;
-        const uids = [...new Set((p.confirmados||[]).filter(c=>!c.pendienteReconfirmar).map(uidDeConfirmado).filter(Boolean))];
-        const perfiles = [];
-        for(const uid of uids) perfiles.push([uid,await tx.get(doc(db,'usuarios',uid))]);
-        tx.update(ref,{notifRatingEnviada:true});
-        for(const [uid,perfil] of perfiles){
-          tx.set(doc(db,'usuarios',uid,'notificaciones',partido.id+'_calificar'),{
-            tipo:'calificar',texto:'El partido en '+p.cancha+' terminó. ¡Calificá a tus compañeros!',
-            partidoId:partido.id,visto:false,creadoEn:serverTimestamp()
-          });
-          if(perfil.exists()) tx.update(doc(db,'usuarios',uid),{partidos:increment(1)});
-        }
+    const clave=uid+':'+partido.id;
+    if(getEstadoPartido(partido)!=='finalizado' || partido.notifRatingEnviada || finalesEnCurso.has(clave) || finalesProcesados.has(clave))continue;
+    if(!(partido.confirmados||[]).some(c=>c?.uid===uid && !c.pendienteReconfirmar) && partido.creadorUid!==uid)continue;
+    finalesEnCurso.add(clave);
+    try{
+      await runTransaction(db,async tx=>{
+        if(state.usuario?.uid!==uid)throw new Error('La sesión cambió.');
+        const ref=doc(db,'partidos',partido.id);
+        const recibo=doc(db,'usuarios',uid,'partidosContados',partido.id);
+        const perfilRef=doc(db,'usuarios',uid);
+        const snap=await tx.get(ref),contado=await tx.get(recibo),perfil=await tx.get(perfilRef);
+        if(!snap.exists() || contado.exists() || !perfil.exists())return;
+        const p=snap.data();
+        if(getEstadoPartido(p)!=='finalizado' || p.notifRatingEnviada)return;
+        tx.set(recibo,{partidoId:partido.id,creadoEn:serverTimestamp()});
+        tx.update(perfilRef,{partidos:increment(1),ultimoPartidoContado:partido.id});
+        tx.set(doc(db,'usuarios',uid,'notificaciones',partido.id+'_calificar'),{
+          ...evidenciaAviso(p,uid),tipo:'calificar',texto:'El partido en '+p.cancha+' terminó. ¡Calificá a tus compañeros!',
+          partidoId:partido.id,visto:false,creadoEn:serverTimestamp()
+        });
       });
-    } catch(e){ console.warn('No se pudo procesar el final del partido.', e.code || ''); }
-    finally { finalesEnCurso.delete(partido.id); }
+      finalesProcesados.add(clave);
+    }catch(e){console.warn('No se pudo procesar el final del partido.',e.code||'');}
+    finally{finalesEnCurso.delete(clave);}
   }
 }
 
@@ -433,7 +439,7 @@ window.retirarSolicitud = async partidoId => {
       }
       const solicitudes = p.solicitudes || [];
       if(!solicitudes.some(s => s.uid === uid)) return;
-      tx.update(refPartido, {solicitudes: solicitudes.filter(s => s.uid !== uid)});
+      tx.update(refPartido, {solicitudes: solicitudes.filter(s => s.uid !== uid),solicitudRetirada:solicitudes.find(s=>s.uid===uid)});
     });
     if(state.usuario?.uid === uid){
       const p = state.partidos.find(p => p.id === partidoId);
@@ -475,7 +481,7 @@ function renderTabPartidos(){
   } else if(tabActual === 'pendientes'){
     html = solicitudesPendientesHTML();
   } else if(tabActual === 'confirmados'){
-    let conf = state.partidos.filter(p => p.creadorUid !== state.usuario.uid && p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === state.perfil.nombre) && !(p.ocultoPara||[]).includes(state.perfil.nombre) && getEstadoPartido(p) !== 'finalizado');
+    let conf = state.partidos.filter(p => p.creadorUid !== state.usuario.uid && p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === state.perfil.nombre) && !(p.ocultoParaUid||[]).includes(state.usuario.uid) && !(p.ocultoPara||[]).includes(state.perfil.nombre) && getEstadoPartido(p) !== 'finalizado');
     if(conf.length === 0){
       html = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">No tenés partidos confirmados activos.</div></div>`;
     }
@@ -496,7 +502,7 @@ function renderTabPartidos(){
       let esCreador = p.creadorUid === state.usuario.uid;
       if(esCreador) return !p.ocultoCreador;
       let esConfirmado = p.confirmados && p.confirmados.some(c => nombreDeConfirmado(c) === state.perfil.nombre);
-      return esConfirmado && !(p.ocultoPara||[]).includes(state.perfil.nombre);
+      return esConfirmado && !(p.ocultoParaUid||[]).includes(state.usuario.uid) && !(p.ocultoPara||[]).includes(state.perfil.nombre);
     });
     if(fin.length === 0){
       html = `<div class="empty"><div class="empty-icon">🏁</div><div class="empty-text">Todavía no tenés partidos finalizados.</div></div>`;
@@ -520,7 +526,7 @@ function renderTabPartidos(){
 
 window.eliminarDeConfirmados = async (partidoId) => {
   if(!confirm("¿Eliminar este partido de tu lista? Los demás jugadores todavía van a poder verlo.")) return;
-  await updateDoc(doc(db, "partidos", partidoId), { ocultoPara: arrayUnion(state.perfil.nombre) });
+  await updateDoc(doc(db, "partidos", partidoId), { ocultoParaUid: arrayUnion(state.usuario.uid) });
   renderTabPartidos();
 };
 
@@ -729,7 +735,7 @@ window.aceptar = async (i) => {
       };
       tx.update(partidoRef, cambios);
       tx.set(doc(db,'usuarios',jugadorUid,'notificaciones',partidoId+'_aceptado_'+(actual.versionHorario||0)),{
-        tipo:'aceptado',texto:'Te aceptaron en '+actual.cancha+'. Mirá los detalles del partido.',
+        ...evidenciaAviso(actual,jugadorUid),tipo:'aceptado',texto:'Te aceptaron en '+actual.cancha+'. Mirá los detalles del partido.',
         partidoId,visto:false,creadoEn:serverTimestamp()
       });
       return { ...actual, ...cambios, id: partidoId };
@@ -758,7 +764,7 @@ window.rechazar = async (i) => {
       if(!(actual.solicitudes||[]).some(coincide)) return;
       tx.update(ref,{solicitudes:(actual.solicitudes||[]).filter(s=>!coincide(s))});
       if(solicitud.uid) tx.set(doc(db,'usuarios',solicitud.uid,'notificaciones',p.id+'_rechazada_'+(actual.versionHorario||0)),{
-        tipo:'rechazado',texto:'Tu solicitud para '+actual.cancha+' no fue aceptada.',
+        ...evidenciaAviso(actual,solicitud.uid),tipo:'rechazado',texto:'Tu solicitud para '+actual.cancha+' no fue aceptada.',
         partidoId:p.id,visto:false,creadoEn:serverTimestamp()
       });
     });
@@ -819,7 +825,7 @@ window.cancelarPartido = async (partidoId, motivo) => {
       if(actual.creadorUid !== uid && !porAdmin) throw new Error('Solo el creador puede cancelar este partido.');
       const receptores = new Set([...(actual.confirmados||[]).map(uidDeConfirmado),...(actual.solicitudes||[]).map(s=>s.uid),actual.creadorUid].filter(id=>id && id!==uid));
       for(const receptor of receptores) tx.set(doc(db,'usuarios',receptor,'notificaciones',partidoId+'_cancelado'),{
-        tipo:'cancelado',texto:'El partido en '+actual.cancha+' ('+actual.hora+') fue cancelado.'+(motivo?' Motivo: '+motivo+'.':''),
+        ...evidenciaAviso(actual,receptor),tipo:'cancelado',texto:'El partido en '+actual.cancha+' ('+actual.hora+') fue cancelado.'+(motivo?' Motivo: '+motivo+'.':''),
         partidoId,visto:false,creadoEn:serverTimestamp()
       });
       tx.delete(ref);
@@ -907,7 +913,7 @@ window.abrirReprogramacion = () => {
         for(const receptor of [...confirmadosUid,...pendientesUid]){
           const confirmado = confirmadosUid.has(receptor);
           tx.set(doc(db,'usuarios',receptor,'notificaciones',partidoId+'_horario_'+cambios.versionHorario),{
-            tipo:confirmado?'reprogramado':'solicitud_reprogramada',
+            ...evidenciaAviso(actual,receptor),tipo:confirmado?'reprogramado':'solicitud_reprogramada',
             texto:'El partido en '+actual.cancha+' cambió al '+fechaPartido(cambios.fecha)+' a las '+cambios.hora+'. '+
               (confirmado?'Confirmá si podés venir. Tu lugar está reservado.':'Tu solicitud anterior se canceló. Podés pedir unirte al nuevo horario.'),
             partidoId,versionHorario:cambios.versionHorario,visto:false,creadoEn:serverTimestamp()
@@ -960,11 +966,11 @@ window.responderReprogramacion = async (partidoId, version, acepta) => {
       const confirmados = acepta
         ? p.confirmados.map(c=>esYo(c)?{...c,pendienteReconfirmar:false}:c)
         : p.confirmados.filter(c=>!esYo(c));
-      const cambios = {confirmados,jugadores:acepta?p.jugadores:Math.max(0,Number(p.jugadores)-1)};
+      const cambios = {confirmados,jugadores:acepta?p.jugadores:Math.max(0,Number(p.jugadores)-1),participanteModificado:p.confirmados.find(esYo)};
       tx.update(ref,cambios);
       if(avisoSnap.exists()) tx.update(avisoRef,{visto:true});
       tx.set(doc(db,'usuarios',p.creadorUid,'notificaciones',partidoId+'_respuesta_'+version+'_'+uid),{
-        tipo:'respuesta_horario',texto:nombre+(acepta?' confirmó el nuevo horario':' no puede venir al nuevo horario y liberó su lugar')+' en '+p.cancha+'.',
+        ...evidenciaAviso(p,p.creadorUid),tipo:'respuesta_horario',texto:nombre+(acepta?' confirmó el nuevo horario':' no puede venir al nuevo horario y liberó su lugar')+' en '+p.cancha+'.',
         partidoId,visto:false,creadoEn:serverTimestamp()
       });
       return {...p,...cambios,id:partidoId};
@@ -1084,9 +1090,9 @@ window.bajarseDepartido = async (i) => {
       if(getEstadoPartido(actual) !== 'activo' || actual.inicioTimestamp - Date.now() < unaHora) throw new Error('Ya no podés bajarte de este partido.');
       const esYo = c => typeof c === 'string' ? c === state.perfil.nombre : c.uid ? c.uid === uid : c.nombre === state.perfil.nombre;
       if(!(actual.confirmados||[]).some(esYo)) return;
-      tx.update(ref,{confirmados:actual.confirmados.filter(c=>!esYo(c)),jugadores:Math.max(0,Number(actual.jugadores)-1)});
+      tx.update(ref,{confirmados:actual.confirmados.filter(c=>!esYo(c)),jugadores:Math.max(0,Number(actual.jugadores)-1),participanteModificado:actual.confirmados.find(esYo)});
       tx.set(doc(db,'usuarios',actual.creadorUid,'notificaciones',p.id+'_bajada_'+version+'_'+uid),{
-        tipo:'bajada',texto:state.perfil.nombre+' canceló su participación en el partido de '+actual.cancha+'.',
+        ...evidenciaAviso(actual,actual.creadorUid),tipo:'bajada',texto:state.perfil.nombre+' canceló su participación en el partido de '+actual.cancha+'.',
         partidoId:p.id,visto:false,creadoEn:serverTimestamp()
       });
     });
@@ -1097,3 +1103,4 @@ window.bajarseDepartido = async (i) => {
 
 
 export { iniciarPartidos, chequearPartidosFinalizados, origCambiarPantalla, tabActual, nombreDeConfirmado, uidDeConfirmado, getConfirmadoItemHTML, getEstadoPartido, estadoBadge, renderTabPartidos, motivoCancelacionElegido, motivoPartidoId, getBajarseBtnHTML };
+
