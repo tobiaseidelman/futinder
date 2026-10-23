@@ -392,7 +392,6 @@ window.verMiPerfil = () => {
     <div class="perfil-body">
       <div class="perfil-nombre">${state.perfil.nombre}</div>
       <span class="perfil-pos">${state.perfil.posicion||'Sin posición'}</span>
-      <button class="social-profile-link" onclick="verAmigos()">Amigos <span aria-hidden="true">›</span></button>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-num">${state.perfil.partidos||0}</div><div class="stat-label">Partidos</div></div>
         <div class="stat-card"><div class="stat-num">${state.perfil.calificacionesRecibidas?state.perfil.rating.toFixed(1):'-'}<span style="display:block;font-size:11px;color:var(--text-muted);font-weight:400;">(${state.perfil.calificacionesRecibidas||0})</span></div><div class="stat-label">Reputación</div></div>
