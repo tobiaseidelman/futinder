@@ -464,3 +464,42 @@ dialog.admin-detail{max-width:480px;max-height:90dvh;padding:20px}
 .admin-chat-message strong{font-size:13px;color:var(--green)}
 .admin-chat-message p{white-space:pre-wrap;margin:6px 0;font-size:14px}
 .admin-chat-message small{color:#999;font-size:11px}
+
+/* Inicio contenido en el alto visible, también con las barras de Safari. */
+body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
+#home{height:100dvh;min-height:0}
+#home>.topbar{position:relative;flex:0 0 auto;padding:10px 20px 8px}
+#home>.navbar{position:relative;left:auto;bottom:auto;transform:none;flex:0 0 auto}
+#home .cards-area{min-height:0;flex:1;padding:6px 20px 10px;overflow:hidden}
+#home #card{display:flex;flex-direction:column;flex:1;min-height:0;max-height:760px}
+#home .partido-card{display:flex;flex-direction:column;flex:1;min-height:0}
+#home .card-img{height:auto;min-height:72px;max-height:260px;flex:1 1 220px}
+#home .card-img-overlay{height:100%;max-height:150px;padding:10px 16px}
+#home .card-body{flex:0 0 auto;padding:10px 16px 12px}
+#home .match-format{margin:7px 0 10px}
+#home .jugadores-bar{margin:8px 0}
+#home .match-location{margin:8px 0}
+#home .location-trigger{min-height:40px;padding:6px 0}
+#home .creador-row{margin:8px 0;min-height:40px}
+#home .creador-info{min-width:0}
+#home .creador-nombre{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#home .card-secondary-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#home .card-secondary-actions .social-share-link{margin:0;min-height:40px;padding:6px 0;font-size:12px}
+#home .card-actions{margin-top:6px;gap:10px}
+#home .action-btn{min-height:46px;padding:10px;font-size:20px}
+#home .swipe-hint{display:none}
+#home #card>.back-btn{flex:0 0 auto;min-height:36px}
+@media(max-height:680px){
+ #home .card-body{padding:6px 14px 10px}
+ #home .match-hour{font-size:24px}
+ #home .match-cost strong{font-size:22px}
+ #home .match-format{margin:5px 0 7px}
+ #home .match-location,#home .creador-row,#home .jugadores-bar{margin:5px 0}
+ #home .card-cancha-name{font-size:20px}
+ #home .cards-area{padding-inline:14px}
+}
+@media(max-height:500px){
+ /* En horizontal o con texto ampliado, conservar acceso a todo el contenido. */
+ #home .cards-area{overflow-y:auto;justify-content:flex-start}
+ #home #card{flex:none;min-height:420px}
+}
