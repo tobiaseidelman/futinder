@@ -233,7 +233,7 @@ service cloud.firestore {
         || (changedOnly(['ocultoParaUid']) && request.resource.data.ocultoParaUid.toSet() == resource.data.get('ocultoParaUid',[]).toSet().union([request.auth.uid].toSet())));
       allow delete: if signed() && (resource.data.creadorUid == request.auth.uid || admin());
       match /mensajes/{message} {
-        allow read: if signed() && member(get(matchPath(id)).data,request.auth.uid);
+        allow read: if admin() || (signed() && member(get(matchPath(id)).data,request.auth.uid));
         allow create: if signed() && member(get(matchPath(id)).data,request.auth.uid)
           && request.resource.data.keys().hasOnly(['nombre','uid','texto','hora'])
           && request.resource.data.uid == request.auth.uid && request.resource.data.nombre == get(userPath(request.auth.uid)).data.nombre
@@ -261,3 +261,4 @@ service cloud.firestore {
     match /{document=**} { allow read,write: if false; }
   }
 }
+
