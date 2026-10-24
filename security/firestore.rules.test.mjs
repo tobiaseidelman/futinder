@@ -211,3 +211,12 @@ test('hiding a match changes only the current user visibility',async()=>{
   await assertFails(updateDoc(ref(db,'partidos/m'),{ocultoParaUid:['player','owner']}));
   await assertFails(updateDoc(ref(db,'partidos/m'),{ocultoPara:['owner']}));
 });
+
+
+test('admin can read match chat without participating but cannot send; outsiders cannot read',async()=>{
+  await seed({'partidos/m/mensajes/msg':{uid:'owner',nombre:'owner',texto:'Hola',hora:new Date()}});
+  await assertSucceeds(getDocs(collection(user(ADMIN),'partidos/m/mensajes')));
+  await assertSucceeds(getDocs(collection(user('player'),'partidos/m/mensajes')));
+  await assertFails(getDocs(collection(user('stranger'),'partidos/m/mensajes')));
+  await assertFails(setDoc(ref(user(ADMIN),'partidos/m/mensajes/new'),{uid:ADMIN,nombre:'Admin',texto:'Mensaje',hora:serverTimestamp()}));
+});
