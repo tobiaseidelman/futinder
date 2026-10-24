@@ -220,3 +220,45 @@ test('admin can read match chat without participating but cannot send; outsiders
   await assertFails(getDocs(collection(user('stranger'),'partidos/m/mensajes')));
   await assertFails(setDoc(ref(user(ADMIN),'partidos/m/mensajes/new'),{uid:ADMIN,nombre:'Admin',texto:'Mensaje',hora:serverTimestamp()}));
 });
+
+async function seedChatFriends(){
+  await seed({'usuarios/owner/amistades/player':{estado:'amigos',solicitanteUid:'owner'},
+    'usuarios/player/amistades/owner':{estado:'amigos',solicitanteUid:'owner'}});
+}
+function privateBatch(uid='owner',id='first',extra={}){
+  const db=user(uid),b=writeBatch(db),message={uid,tipo:'texto',texto:'Hola',partidoId:'',cancha:'',fecha:'',hora:'',creadoEn:serverTimestamp(),...extra};
+  b.set(ref(db,'conversaciones/owner__player/mensajes/'+id),message);
+  b.set(ref(db,'conversaciones/owner__player'),{participantes:['owner','player'],ultimoId:id,ultimoTexto:message.tipo==='partido'?'⚽ '+message.cancha:message.texto,actualizadoEn:serverTimestamp()});
+  return b;
+}
+test('private chat requires mutual friendship and binds author',async()=>{
+  await assertFails(privateBatch().commit());
+  await seedChatFriends();
+  await assertSucceeds(privateBatch().commit());
+  await assertFails(privateBatch('stranger','fake').commit());
+  await assertFails(privateBatch('player','spoof',{uid:'owner'}).commit());
+});
+test('private messages readable only by participants, immutable and atomic',async()=>{
+  await seedChatFriends();await assertSucceeds(privateBatch().commit());
+  await assertSucceeds(getDocs(collection(user('player'),'conversaciones/owner__player/mensajes')));
+  await assertFails(getDocs(collection(user('stranger'),'conversaciones/owner__player/mensajes')));
+  await assertFails(getDocs(collection(user(ADMIN),'conversaciones/owner__player/mensajes')));
+  await assertFails(updateDoc(ref(user('owner'),'conversaciones/owner__player/mensajes/first'),{texto:'Changed'}));
+  await assertFails(deleteDoc(ref(user('owner'),'conversaciones/owner__player/mensajes/first')));
+  await assertFails(updateDoc(ref(user('owner'),'conversaciones/owner__player'),{ultimoTexto:'Forged'}));
+  await assertSucceeds(privateBatch('player','reply',{texto:'Hola también'}).commit());
+});
+test('private shared match must exist, be upcoming and have accurate details',async()=>{
+  await seedChatFriends();
+  const details={tipo:'partido',texto:'',partidoId:'m',cancha:'Cancha',fecha:game().fecha,hora:game().hora};
+  await assertSucceeds(privateBatch('owner','shared',details).commit());
+  await assertFails(privateBatch('owner','wrong',{...details,cancha:'Fake'}).commit());
+  await seed({'partidos/m':game({inicioTimestamp:now-3600000,finTimestamp:now-1})});
+  await assertFails(privateBatch('owner','expired',details).commit());
+});
+test('removing friend preserves history but prevents new messages',async()=>{
+  await seedChatFriends();await assertSucceeds(privateBatch().commit());
+  await env.withSecurityRulesDisabled(async c=>{await deleteDoc(ref(c.firestore(),'usuarios/owner/amistades/player'));});
+  await assertSucceeds(getDocs(collection(user('owner'),'conversaciones/owner__player/mensajes')));
+  await assertFails(privateBatch('player','later').commit());
+});
