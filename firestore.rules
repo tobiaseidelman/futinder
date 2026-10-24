@@ -258,6 +258,54 @@ service cloud.firestore {
         && request.resource.data.estado == 'revisado' && request.resource.data.revisadoPor == request.auth.uid && request.resource.data.revisadoEn == request.time;
       allow delete: if false;
     }
+
+    // Conversaciones privadas: historial visible solo para sus dos participantes.
+    match /conversaciones/{chatId} {
+      function members(p) {
+        return p is list && p.size() == 2 && p[0] is string && p[1] is string
+          && p[0] != p[1] && request.auth.uid in p
+          && chatId == p[0]+'__'+p[1];
+      }
+      function friends(p) {
+        return get(friendPath(p[0],p[1])).data.estado == 'amigos'
+          && get(friendPath(p[1],p[0])).data.estado == 'amigos';
+      }
+      function validHeader() {
+        let n=request.resource.data;
+        let msgPath=/databases/$(database)/documents/conversaciones/$(chatId)/mensajes/$(n.ultimoId);
+        let m=getAfter(msgPath).data;
+        return n.keys().hasOnly(['participantes','ultimoTexto','ultimoId','actualizadoEn'])
+          && members(n.participantes) && friends(n.participantes)
+          && n.actualizadoEn == request.time && !exists(msgPath)
+          && m.uid == request.auth.uid && m.creadoEn == request.time
+          && n.ultimoTexto == (m.tipo == 'partido' ? '⚽ '+m.cancha : m.texto);
+      }
+      allow read: if signed() && request.auth.uid in resource.data.participantes;
+      allow create: if signed() && validHeader();
+      allow update: if signed() && request.resource.data.participantes == resource.data.participantes && validHeader();
+      allow delete: if false;
+      match /mensajes/{messageId} {
+        function validMessage() {
+          let n=request.resource.data;
+          let parent=getAfter(/databases/$(database)/documents/conversaciones/$(chatId)).data;
+          return n.keys().hasOnly(['uid','tipo','texto','partidoId','cancha','fecha','hora','creadoEn'])
+            && members(parent.participantes) && friends(parent.participantes)
+            && parent.ultimoId == messageId && parent.actualizadoEn == request.time
+            && n.uid == request.auth.uid && n.creadoEn == request.time
+            && n.texto is string && n.texto.size() <= 2000
+            && ((n.tipo == 'texto' && n.texto.size() > 0 && n.partidoId == '' && n.cancha == '' && n.fecha == '' && n.hora == '')
+              || (n.tipo == 'partido' && n.texto == '' && n.partidoId is string
+                && upcoming(get(matchPath(n.partidoId)).data)
+                && n.cancha == get(matchPath(n.partidoId)).data.cancha
+                && n.fecha == get(matchPath(n.partidoId)).data.fecha
+                && n.hora == get(matchPath(n.partidoId)).data.hora));
+        }
+        allow read: if signed() && request.auth.uid in get(/databases/$(database)/documents/conversaciones/$(chatId)).data.participantes;
+        allow create: if signed() && validMessage();
+        allow update,delete: if false;
+      }
+    }
+
     match /{document=**} { allow read,write: if false; }
   }
 }
