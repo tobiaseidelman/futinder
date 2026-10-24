@@ -105,7 +105,7 @@ function initSwipe(){
   const card = document.querySelector(".partido-card");
   if(!card) return;
   cardEl = card;
-  card.addEventListener("touchstart", e => { startX = e.touches[0].clientX; isDragging = true; card.classList.add("swiping"); }, {passive:true});
+  card.addEventListener("touchstart", e => { if(e.target.closest("button")){isDragging=false;currentX=0;return;} startX = e.touches[0].clientX; isDragging = true; card.classList.add("swiping"); }, {passive:true});
   card.addEventListener("touchmove", e => {
     if(!isDragging) return;
     currentX = e.touches[0].clientX - startX;
@@ -238,6 +238,7 @@ window.render = () => {
       <div class="swipe-overlay yes">QUIERO ✅</div>
       <div class="swipe-overlay no">❌ PASO</div>
       <div class="card-img">
+        ${getEstadoPartido(p)==='activo' ? '<button type="button" class="card-share-icon" aria-label="Compartir partido" title="Compartir partido" data-id="'+textoTarjeta(p.id)+'" onclick="event.stopPropagation();compartirPartido(this.dataset.id)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5l4-4 4 4M12 1v14M7 9H4v13h16V9h-3"/></svg></button>' : ''}
         <div class="card-img-bg" style="background-image:url('${p.canchaFoto||'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600'}')"></div>
         <div class="card-img-overlay">
           <div class="card-cancha-name" id="canchaLocationBtn" role="button" tabindex="0" aria-expanded="false" aria-controls="distPopup" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleDist();}" onclick="toggleDist()">${p.cancha}</div>
@@ -266,11 +267,7 @@ window.render = () => {
             <div class="creador-nombre">👨‍🔧 ${p.creador}</div>
             <div class="creador-sub" id="cardCreatorRating" data-partido="${textoTarjeta(p.id)}">Creador</div>
           </div>
-          <span style="color:var(--text-muted)">›</span>
-        </div>
-      <div class="card-secondary-actions">
-      ${getEstadoPartido(p) === 'activo' ? `<button class="social-share-link" data-id="${textoTarjeta(p.id)}" onclick="compartirPartido(this.dataset.id)">↗ Compartir partido</button>` : ''}
-        ${p.creadorUid !== state.usuario?.uid ? `<button class="social-share-link" style="color:var(--text-muted)" data-id="${textoTarjeta(p.id)}" onclick="reportarPartido(this.dataset.id)">Reportar partido</button>` : ''}
+          ${window.botonOpcionesPersonaHTML?.(p.creadorUid,p.creador)||''}
         </div>
         <div class="card-actions">
 ${compartido ? accionesCompartidas(p) : pendiente
