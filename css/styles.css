@@ -510,3 +510,21 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
 .person-options:focus-visible,#home .card-share-icon:focus-visible{outline:2px solid var(--green);outline-offset:-3px}
 .person-options-dialog .social-action{display:block;width:100%;margin-top:8px;min-height:46px;text-align:left}
 .person-options-dialog .person-report{color:#e99}
+
+.btn-request{background:var(--surface2);color:var(--green);border:1px solid #33462c}
+#amigos .friends-tabs{gap:5px}#amigos .friends-tabs button{padding:8px 6px;font-size:12px}
+.friend-chat-row{width:100%;display:flex;align-items:center;gap:12px;padding:16px 0;border:0;border-bottom:1px solid #292929;background:none;color:var(--text);text-align:left;cursor:pointer;font:inherit}
+.friend-chat-preview{min-width:0;flex:1}.friend-chat-preview p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:5px}
+.friend-chat-dialog{margin:auto;width:min(100%,420px);height:100dvh;max-height:100dvh;max-width:100%;padding:0;border:0;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif}
+.friend-chat-dialog[open]{display:flex;flex-direction:column}.friend-chat-dialog::backdrop{background:#000b}
+.friend-chat-header{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #222;flex-shrink:0}
+.friend-chat-header strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.friend-chat-messages{flex:1;min-height:0;overflow:auto;padding:16px;overscroll-behavior:contain}
+.friend-message{width:fit-content;max-width:88%;padding:12px;margin:8px 0;background:#202020;border-radius:16px;overflow-wrap:anywhere}
+.friend-message.own{margin-left:auto;background:#163111}.friend-message p{white-space:pre-wrap;margin:0;font-size:14px}
+.friend-message small{display:block;color:#a1aa9e;font-size:10px;margin-top:6px}
+.friend-message button{margin-top:10px}.friend-chat-status{padding:0 16px}
+.friend-chat-form{display:flex;gap:8px;padding:12px 12px max(12px,env(safe-area-inset-bottom));flex-shrink:0;border-top:1px solid #222}
+.friend-chat-form input{min-width:0;flex:1;font-size:16px}
+
+.friend-chat-dialog{position:fixed;inset:0 0 auto;margin:0 auto;max-height:none}
