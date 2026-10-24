@@ -17,7 +17,7 @@ window.mostrarTarjetaCompartida = id => {
 };
 function accionesCompartidas(p){
   if(getEstadoPartido(p) !== 'activo') return '<p style="color:var(--text-muted);text-align:center;">Este partido ya empezó o finalizó.</p>';
-  if((p.solicitudes||[]).some(s=>s.uid===state.usuario?.uid)) return '<button class="action-btn btn-no" data-id="'+textoTarjeta(p.id)+'" onclick="abrirSolicitudPendiente(this.dataset.id)">Ver mi solicitud</button>';
+  if((p.solicitudes||[]).some(s=>s.uid===state.usuario?.uid)) return '<button class="action-btn btn-request" data-id="'+textoTarjeta(p.id)+'" onclick="abrirSolicitudPendiente(this.dataset.id)">Ver mi solicitud</button>';
   if(Number(p.jugadores)>=Number(p.max)) return '<p style="color:var(--text-muted);text-align:center;">Este partido está completo.</p>';
   return '<button class="action-btn btn-yes" style="width:100%;" data-id="'+textoTarjeta(p.id)+'" onclick="match(this.dataset.id)">Quiero jugar</button>';
 }
