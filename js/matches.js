@@ -22,6 +22,7 @@ function iniciarPartidos(){
     }
     chequearPartidosFinalizados();
     revisarVencimientos();
+    window.actualizarVistaNotificaciones?.();
     window.procesarEnlaceCompartido?.();
   });
 }
@@ -61,6 +62,7 @@ function revisarVencimientos(){
   const firma = state.partidos.map(p=>p.id+':'+getEstadoPartido(p)).join('|');
   if(firma !== estadosTemporales){
     estadosTemporales = firma;
+    window.actualizarVistaNotificaciones?.();
     if(document.getElementById('adminPanel')?.classList.contains('active')) window.renderAdminPanel?.();
     const i = state.idx;
     if(document.getElementById('home').classList.contains('active')) render();
