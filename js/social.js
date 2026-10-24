@@ -226,6 +226,7 @@ window.compartirPartido=partidoId=>{
   }));
   dialogo.append(acciones,enlace);
   encabezado(dialogo,'Enviar a un amigo');
+  texto(dialogo,'Le llegará a la campana de Futinder. No se envía por WhatsApp ni como aviso del celular.');
   const lista=document.createElement('div');dialogo.append(lista);
   const amigos=relaciones.filter(r=>r.estado==='amigos');
   if(!amigos.length){
@@ -236,9 +237,12 @@ window.compartirPartido=partidoId=>{
     const fila=document.createElement('div');fila.className='social-row';lista.append(fila);
     const nombre=document.createElement('span');nombre.textContent='Cargando…';nombre.style.flex='1';fila.append(nombre);
     perfilDe(amigo.uid).then(datos=>{if(fila.isConnected)nombre.textContent=datos.nombre||'Jugador';}).catch(()=>{nombre.textContent='Jugador';});
+    const estadoEnvio=texto(fila,'');estadoEnvio.setAttribute('role','status');estadoEnvio.style.cssText='flex-basis:100%;margin-top:4px';
     const enviar=boton('Enviar',async()=>{
+      estadoEnvio.textContent='Enviando…';
+      try{
       sesion(uid);
-      await runTransaction(db,async tx=>{
+      const nuevo=await runTransaction(db,async tx=>{
         sesion(uid);
         const amistad=await tx.get(doc(db,'usuarios',uid,'amistades',amigo.uid));
         const reciproca=await tx.get(doc(db,'usuarios',amigo.uid,'amistades',uid));
@@ -248,12 +252,20 @@ window.compartirPartido=partidoId=>{
         const actual=partido.data();
         if(getEstadoPartido(actual) !== 'activo') throw new Error('Solo podés enviar partidos que todavía no empezaron.');
         const ref=doc(db,'usuarios',amigo.uid,'notificaciones',partidoId+'_compartido_'+uid+'_'+(actual.versionHorario||0));
-        const previo=await tx.get(ref);if(previo.exists()) return;
+        const previo=await tx.get(ref);if(previo.exists()) return false;
         tx.set(ref,{tipo:'partido_compartido',partidoId,deUid:uid,
           texto:state.perfil.nombre+' te compartió un partido en '+actual.cancha+' para el '+fechaPartido(actual.fecha)+' a las '+actual.hora+'.',
           visto:false,creadoEn:serverTimestamp()});
+        return true;
       });
-      enviar.textContent='Enviado';enviar.onclick=null;window.mostrarAviso('Partido enviado.','success');
+      if(state.usuario?.uid!==uid)return;
+      enviar.textContent=nuevo?'Enviado':'Ya enviado';enviar.onclick=null;
+      estadoEnvio.textContent=nuevo?'Listo. Tu amigo lo encontrará en la campana de Futinder.':'Ya le habías enviado este partido. La notificación sigue en su campana, posiblemente marcada como leída.';
+      window.mostrarAviso(nuevo?'Partido enviado a sus notificaciones.':'Este partido ya había sido enviado.',nuevo?'success':'info');
+      }catch(e){
+        estadoEnvio.textContent=e.code==='permission-denied'?'No se pudo enviar: Firebase rechazó la operación. Revisá las reglas publicadas.':e.message||'No se pudo enviar. Intentá de nuevo.';
+        throw e;
+      }
     },true);fila.append(enviar);
   }
   const overflow=document.body.style.overflow,origen=document.activeElement;
