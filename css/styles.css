@@ -503,3 +503,10 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
  #home .cards-area{overflow-y:auto;justify-content:flex-start}
  #home #card{flex:none;min-height:420px}
 }
+
+/* Acciones discretas sobre la imagen y junto a cada jugador. */
+#home .card-share-icon{position:absolute;top:10px;right:10px;z-index:6;width:44px;height:44px;display:grid;place-items:center;border:1px solid #ffffff26;border-radius:50%;background:#101010b8;color:white;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);cursor:pointer}
+.person-options{display:inline-flex;align-items:center;justify-content:center;flex:0 0 40px;width:40px;height:40px;padding:0;border:1px solid #ffffff14;border-radius:10px;background:#ffffff08;color:#bbb;font:600 24px 'DM Sans',sans-serif;cursor:pointer}
+.person-options:focus-visible,#home .card-share-icon:focus-visible{outline:2px solid var(--green);outline-offset:-3px}
+.person-options-dialog .social-action{display:block;width:100%;margin-top:8px;min-height:46px;text-align:left}
+.person-options-dialog .person-report{color:#e99}
