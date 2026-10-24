@@ -11,7 +11,7 @@ El archivo `firestore.rules` reemplaza por completo las reglas públicas anterio
 5. Recargar Futinder en todas las pestañas y dispositivos que se estén usando.
 6. Probar con dos cuentas: solicitud de partido, aceptación, chat, amistad, compartir y reportar. Probar la revisión del reporte desde la cuenta admin.
 
-Las reglas se probaron en el emulador de Firestore, no contra los datos de producción. No se modificaron registros ni reglas de la base real desde este cambio.
+La versión inicial pasó 20 pruebas en el emulador de Firestore. La ampliación de lectura de chat para el administrador incluye una prueba adicional pendiente de ejecución: falló la descarga del emulador en ese entorno. No se probó contra los datos de producción. No se modificaron registros ni reglas de la base real desde este cambio.
 
 ## Permisos
 
@@ -19,7 +19,7 @@ Las reglas se probaron en el emulador de Firestore, no contra los datos de produ
 - Perfiles: visibles para usuarios con sesión; cada persona edita sus propios datos personales, pero no sus estrellas ni contadores.
 - Partidos: lectura con sesión; creación con el UID autenticado, cambios del organizador y operaciones limitadas del participante sobre su propia solicitud o lugar.
 - Amigos: solicitud simétrica; solo el receptor puede aceptarla; cualquiera de los dos puede eliminar la relación.
-- Chats: solo jugadores confirmados; autor del mensaje ligado a la sesión.
+- Chats: jugadores confirmados pueden leer y escribir; el administrador también puede leer para moderar, sin permiso adicional para escribir. Autor del mensaje ligado a la sesión.
 - Calificaciones: una por jugador/autor/partido terminado, sin autocalificación. Los índices de participantes se comprueban contra los UID guardados. Promedio y etiquetas se validan junto con la nueva opinión en la misma operación.
 - Notificaciones: inbox privado; los avisos enviados a otra persona requieren la amistad o el partido correspondiente.
 - Reportes: creación por el autor; solo el administrador puede listar todos y marcarlos revisados.
