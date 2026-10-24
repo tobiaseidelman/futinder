@@ -1,3 +1,4 @@
+import { getEstadoPartido } from './matches.js';
 import { state } from './state.js';
 import { query, collection, db, orderBy, onSnapshot, updateDoc, doc, deleteDoc } from './firebase.js';
 
@@ -6,19 +7,26 @@ function iniciarNotificaciones(){
   if(!state.usuario) return;
   const uid = state.usuario.uid;
   state.notificaciones = [];
+  soloNoLeidas=false;
+  estadoCargaNotificaciones='cargando';
   actualizarBadge();
   state.notifUnsub = onSnapshot(query(collection(db,'usuarios',uid,'notificaciones'),orderBy('creadoEn','desc')),snap=>{
     if(state.usuario?.uid !== uid) return;
-    state.notificaciones = snap.docs.map(d=>({id:d.id,...d.data()}));
+    estadoCargaNotificaciones='listo';
+    state.notificaciones = snap.docs.map(d=>({...d.data(),id:d.id}));
     actualizarBadge();
     if(document.getElementById('notificaciones').classList.contains('active')) renderNotificaciones();
   },()=>{
-    if(state.usuario?.uid===uid) window.mostrarAviso('No pudimos cargar las notificaciones. Revisá tu conexión.', 'error');
+    if(state.usuario?.uid!==uid)return;
+    estadoCargaNotificaciones='error';
+    if(document.getElementById('notificaciones').classList.contains('active'))renderNotificaciones();
+    window.mostrarAviso('No pudimos cargar las notificaciones. Revisá tu conexión.', 'error');
   });
 }
 function actualizarBadge(){
   const total = state.notificaciones.filter(n=>!n.visto).length;
   const badge = document.getElementById('badgeDot');
+  if(!badge)return;
   badge.classList.toggle('show',total>0);
   badge.setAttribute('aria-label',total+' notificaciones sin leer');
 }
@@ -33,11 +41,13 @@ function etiquetaNotificacion(n){
     const pendiente=(p.confirmados||[]).some(c=>c.pendienteReconfirmar && (c.uid?c.uid===state.usuario?.uid:c.nombre===state.perfil?.nombre));
     if(!pendiente) return 'Cambio de horario · respondido';
   }
+  if(n.tipo==='solicitud' && p && getEstadoPartido(p)!=='activo')return 'Solicitud vencida';
   if(n.tipo==='solicitud' && p && n.solicitanteUid && !(p.solicitudes||[]).some(s=>s.uid===n.solicitanteUid)) return 'Solicitud resuelta';
   return etiquetas[n.tipo] || 'Aviso';
 }
 
 let soloNoLeidas = false;
+let estadoCargaNotificaciones='cargando';
 window.filtrarNotificaciones = valor => {soloNoLeidas=valor;renderNotificaciones();};
 function fechaNotificacion(n){
   const ms = typeof n.creadoEn?.toMillis === 'function' ? n.creadoEn.toMillis() : Number(n.creadoEn?.seconds)*1000;
@@ -59,6 +69,17 @@ function renderNotificaciones(){
   document.getElementById('notifCantidad').textContent=sinLeer;
   document.getElementById('notifTodas').setAttribute('aria-pressed',String(!soloNoLeidas));
   document.getElementById('notifNoLeidas').setAttribute('aria-pressed',String(soloNoLeidas));
+  if(estadoCargaNotificaciones!=='listo'){
+    const mensaje=document.createElement('p');mensaje.className='notif-empty';mensaje.setAttribute('role','status');
+    mensaje.textContent=estadoCargaNotificaciones==='cargando'?'Cargando notificaciones…':'No se pudieron cargar las notificaciones.';
+    lista.append(mensaje);
+    if(estadoCargaNotificaciones==='error'){
+      const reintentar=document.createElement('button');reintentar.className='social-action';reintentar.textContent='Reintentar';
+      reintentar.onclick=()=>{iniciarNotificaciones();renderNotificaciones();};lista.append(reintentar);
+    }
+    document.getElementById('notifResumen').textContent=estadoCargaNotificaciones==='cargando'?'Consultando tus novedades…':'Revisá tu conexión y volvé a intentar.';
+    return;
+  }
   const visibles=state.notificaciones.filter(n=>!soloNoLeidas||!n.visto);
   if(!visibles.length){
     const vacio=document.createElement('div');vacio.className='notif-empty';
@@ -80,7 +101,7 @@ function renderNotificaciones(){
     fila.setAttribute('aria-label',(n.visto?'Leída. ':'Sin leer. ')+String(n.texto||'Aviso'));
     fila.onclick=()=>window.abrirNotificacion(n.id);
     const icon=document.createElement('span');icon.className='notif-symbol';icon.setAttribute('aria-hidden','true');
-    icon.textContent=({solicitud:'＋',aceptado:'✓',rechazado:'−',cancelado:'×',bajada:'↘',calificar:'☆',tag_malo:'☆',solicitud_vencida:'◷',solicitud_reprogramada:'↻',respuesta_horario:'✓',reprogramado:'↻'})[n.tipo]||'•';
+    icon.textContent=({amistad_solicitud:'👥',amistad_aceptada:'✓',partido_compartido:'↗',solicitud:'＋',aceptado:'✓',rechazado:'−',cancelado:'×',bajada:'↘',calificar:'☆',tag_malo:'☆',solicitud_vencida:'◷',solicitud_reprogramada:'↻',respuesta_horario:'✓',reprogramado:'↻'})[n.tipo]||'•';
     const contenido=document.createElement('span');contenido.className='notif-content';
     const cabecera=document.createElement('span');cabecera.className='notif-card-header';
     const titulo=document.createElement('span');titulo.className='notif-card-title';titulo.textContent=etiquetaNotificacion(n);
@@ -92,19 +113,23 @@ function renderNotificaciones(){
     fila.append(icon,contenido);lista.append(fila);
   }
 }
+window.actualizarVistaNotificaciones=()=>{if(document.getElementById('notificaciones')?.classList.contains('active'))renderNotificaciones();};
 window.verNotificaciones=()=>{renderNotificaciones();cambiarPantalla('notificaciones');};
 
 const abriendo=new Set();
 window.abrirNotificacion=async id=>{
   const n=state.notificaciones.find(n=>n.id===id),uid=state.usuario?.uid;
-  if(!n||!uid||abriendo.has(id)) return;
-  abriendo.add(id);
+  const clave=uid+':'+id;
+  if(!n||!uid||abriendo.has(clave)) return;
+  abriendo.add(clave);
   try {
     if(!n.visto){
       try {
         await updateDoc(doc(db,'usuarios',uid,'notificaciones',id),{visto:true});
         if(state.usuario?.uid!==uid) return;
-        n.visto=true;actualizarBadge();
+        const actual=state.notificaciones.find(item=>item.id===id);
+        if(actual)actual.visto=true;
+        actualizarBadge();window.actualizarVistaNotificaciones();
       } catch(e){window.mostrarAviso('No se pudo marcar como leída. Podés abrirla igual.');}
     }
     if(state.usuario?.uid!==uid) return;
@@ -116,14 +141,14 @@ window.abrirNotificacion=async id=>{
       window.mostrarAviso(n.texto||'Esta solicitud ya no está pendiente.');
       verMisPartidos();if(n.tipo!=='cancelado') window.switchTab('pendientes');return;
     }
-    if(n.tipo==='solicitud_reprogramada'){irHome();return;}
+    if(n.tipo==='solicitud_reprogramada'){await window.abrirPartidoCompartido(n.partidoId);return;}
     const i=state.partidos.findIndex(p=>p.id===n.partidoId);
     if(i<0){window.mostrarAviso('Este partido ya no está disponible.');verMisPartidos();return;}
     const p=state.partidos[i];
     if(p.creadorUid===uid){verDetalle(i);return;}
     if(participa(p)){verInfoPartido(i);return;}
     window.mostrarAviso('Ya no tenés un lugar confirmado en este partido.');verMisPartidos();
-  } finally {abriendo.delete(id);}
+  } finally {abriendo.delete(clave);}
 };
 
 let limpiando=false;
