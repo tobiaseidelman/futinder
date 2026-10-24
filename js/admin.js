@@ -124,6 +124,7 @@ window.abrirDetalleAdmin=(id,mostrarChat=false)=>{
         adminTexto(nombre,'strong',c.nombre||'Jugador');
         const detalles=[c.uid===p.creadorUid?'Creador':'',c.posicion||'',c.pendienteReconfirmar?'Debe reconfirmar':''].filter(Boolean);
         if(detalles.length)adminTexto(nombre,'small',detalles.join(' · '));
+        if(c.uid){const opciones=adminTexto(fila,'span','');opciones.innerHTML=window.botonOpcionesPersonaHTML?.(c.uid,c.nombre)||'';}
         if(c.uid)adminBoton(fila,'Ver perfil',()=>{cerrar();window.abrirPerfilJugador(c.uid,c.nombre);});
       }
     };
