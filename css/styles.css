@@ -438,3 +438,29 @@ body.chat-abierto { overflow:hidden; }
 /* Cinco destinos principales con espacios iguales en celular. */
 .navbar .nav-btn{flex:1 1 0;min-width:0;min-height:60px;white-space:nowrap}
 #amigos .social-body{padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+
+
+/* Administración: acciones secundarias y detalle de moderación móvil. */
+#adminPanel .admin-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+#adminPanel .admin-actions button{width:100%;margin:0;white-space:normal}
+#adminPanel .admin-danger{width:100%;margin-top:10px;min-height:44px;color:var(--red);background:transparent;border-color:#482626}
+#adminPanel .partido-item p{margin:8px 0;overflow-wrap:anywhere}
+#adminPanel .mis-partidos-list{padding-bottom:100px}
+.admin-muted{color:var(--muted,#999);font-size:13px;line-height:1.5}
+dialog.admin-detail{max-width:480px;max-height:90dvh;padding:20px}
+.admin-detail-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.admin-detail-header h2{margin:0;overflow-wrap:anywhere}
+.admin-detail-header button{flex-shrink:0}
+.admin-match-data{display:grid;grid-template-columns:1fr 1.4fr;gap:10px 12px;font-size:14px}
+.admin-match-data dt{color:#999}.admin-match-data dd{margin:0;overflow-wrap:anywhere}
+.admin-detail h3{font-size:15px;margin:24px 0 8px}
+.admin-person{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #292929}
+.admin-person>div{min-width:0;overflow-wrap:anywhere}.admin-person small{display:block;color:#999;margin-top:4px}
+.admin-person button{flex-shrink:0}
+.admin-chat{margin-top:24px;border-top:1px solid #333;padding-top:16px}
+.admin-chat summary{cursor:pointer;color:var(--green);min-height:44px;font-size:14px}
+.admin-chat-messages{max-height:45dvh;overflow:auto;overscroll-behavior:contain}
+.admin-chat-message{background:#222;border-radius:12px;padding:12px;margin:8px 0;overflow-wrap:anywhere}
+.admin-chat-message strong{font-size:13px;color:var(--green)}
+.admin-chat-message p{white-space:pre-wrap;margin:6px 0;font-size:14px}
+.admin-chat-message small{color:#999;font-size:11px}
