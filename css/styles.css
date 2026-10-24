@@ -473,7 +473,7 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
 #home .cards-area{min-height:0;flex:1;padding:6px 20px 10px;overflow:hidden}
 #home #card{display:flex;flex-direction:column;flex:1;min-height:0;max-height:760px}
 #home .partido-card{display:flex;flex-direction:column;flex:1;min-height:0}
-#home .card-img{height:auto;min-height:72px;max-height:260px;flex:1 1 220px}
+#home .card-img{height:auto;min-height:72px;flex:1 1 220px}
 #home .card-img-overlay{height:100%;max-height:150px;padding:10px 16px}
 #home .card-body{flex:0 0 auto;padding:10px 16px 12px}
 #home .match-format{margin:7px 0 10px}
