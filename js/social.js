@@ -52,6 +52,7 @@ async function dibujarUsuario(parent,uid,datos){
   persona(fila,uid,datos);
   const r=relacion(uid),acciones=document.createElement('div');acciones.className='social-actions';
   if(r?.estado==='amigos'){
+    acciones.append(boton('Chatear',()=>window.abrirChatAmigo(uid),true));
     acciones.append(boton('Eliminar',async()=>{
       if(await confirmarAccion({titulo:'¿Eliminar de amigos?',mensaje:datos.nombre+' dejará de aparecer en tu lista.',aceptar:'Eliminar'})) await cambiarAmistad(uid,'eliminar');
     }));
@@ -62,9 +63,9 @@ async function dibujarUsuario(parent,uid,datos){
   fila.append(acciones);
 }
 let renderGeneracion=0;
-let tabAmigos='amigos';
+let tabAmigos='chats';
 window.mostrarTabAmigos=tab=>{
-  tabAmigos=tab==='solicitudes'?'solicitudes':'amigos';
+  tabAmigos=['chats','amigos','solicitudes'].includes(tab)?tab:'chats';
   void renderAmigos();
 };
 async function renderAmigos(){
@@ -77,6 +78,8 @@ async function renderAmigos(){
   document.getElementById('tabMisAmigos').setAttribute('aria-pressed',String(tabAmigos==='amigos'));
   document.getElementById('tabSolicitudesAmigos').setAttribute('aria-pressed',String(tabAmigos==='solicitudes'));
   document.getElementById('buscadorAmigos').hidden=tabAmigos!=='amigos';
+  document.getElementById('tabChatsAmigos')?.setAttribute('aria-pressed',String(tabAmigos==='chats'));
+  if(tabAmigos==='chats'){await renderChatsPrivados(cont,uid,version);return;}
   const grupos=tabAmigos==='solicitudes' ? [
     ['Solicitudes de amistad',recibidas],
     ['Solicitudes enviadas',relaciones.filter(r=>r.estado==='pendiente'&&r.solicitanteUid===uid)]
@@ -101,7 +104,8 @@ async function renderAmigos(){
   }
 }
 window.detenerSocial=()=>{
-  tabAmigos='amigos';
+  tabAmigos='chats';
+  detenerChatsPrivados();
   amistadesCargadas=false;
   unsubscribe?.();unsubscribe=null;socialUid=null;relaciones=[];busqueda=[];perfiles.clear();buscando++;renderGeneracion++;
   cerrarCompartir?.();
@@ -113,6 +117,7 @@ window.detenerSocial=()=>{
 window.iniciarSocial=()=>{
   window.detenerSocial();
   const uid=state.usuario?.uid;if(!uid) return;socialUid=uid;
+  iniciarChatsPrivados(uid);
   unsubscribe=onSnapshot(collection(db,'usuarios',uid,'amistades'),snap=>{
     if(socialUid!==uid||state.usuario?.uid!==uid) return;
     relaciones=snap.docs.map(d=>({...d.data(),uid:d.id}));
@@ -123,10 +128,10 @@ window.iniciarSocial=()=>{
     if(socialUid===uid) window.mostrarAviso('No pudimos cargar Amigos. Revisá la conexión y los permisos de Firebase.','error');
   });
 };
-window.verAmigos=(tab='amigos')=>{
+window.verAmigos=(tab='chats')=>{
   if(!state.usuario||!state.perfil) return;
   if(socialUid!==state.usuario.uid) window.iniciarSocial();
-  tabAmigos=tab==='solicitudes'?'solicitudes':'amigos';
+  tabAmigos=['chats','amigos','solicitudes'].includes(tab)?tab:'chats';
   window.cambiarPantalla('amigos');void renderAmigos();
 };
 window.buscarAmigos=async()=>{
@@ -226,7 +231,7 @@ window.compartirPartido=partidoId=>{
   }));
   dialogo.append(acciones,enlace);
   encabezado(dialogo,'Enviar a un amigo');
-  texto(dialogo,'Le llegará a la campana de Futinder. No se envía por WhatsApp ni como aviso del celular.');
+  texto(dialogo,'Le llegará al chat en Amigos y también a la campana de Futinder.');
   const lista=document.createElement('div');dialogo.append(lista);
   const amigos=relaciones.filter(r=>r.estado==='amigos');
   if(!amigos.length){
@@ -252,16 +257,18 @@ window.compartirPartido=partidoId=>{
         const actual=partido.data();
         if(getEstadoPartido(actual) !== 'activo') throw new Error('Solo podés enviar partidos que todavía no empezaron.');
         const ref=doc(db,'usuarios',amigo.uid,'notificaciones',partidoId+'_compartido_'+uid+'_'+(actual.versionHorario||0));
-        const previo=await tx.get(ref);if(previo.exists()) return false;
+        const previo=await tx.get(ref);
+        guardarMensajePrivado(tx,uid,amigo.uid,{tipo:'partido',texto:'',partidoId,cancha:actual.cancha,fecha:actual.fecha,hora:actual.hora});
+        if(previo.exists()) return false;
         tx.set(ref,{tipo:'partido_compartido',partidoId,deUid:uid,
           texto:state.perfil.nombre+' te compartió un partido en '+actual.cancha+' para el '+fechaPartido(actual.fecha)+' a las '+actual.hora+'.',
           visto:false,creadoEn:serverTimestamp()});
         return true;
       });
       if(state.usuario?.uid!==uid)return;
-      enviar.textContent=nuevo?'Enviado':'Ya enviado';enviar.onclick=null;
-      estadoEnvio.textContent=nuevo?'Listo. Tu amigo lo encontrará en la campana de Futinder.':'Ya le habías enviado este partido. La notificación sigue en su campana, posiblemente marcada como leída.';
-      window.mostrarAviso(nuevo?'Partido enviado a sus notificaciones.':'Este partido ya había sido enviado.',nuevo?'success':'info');
+      enviar.textContent='Enviado';enviar.onclick=null;
+      estadoEnvio.textContent='Listo. El partido está en su chat de Amigos.';
+      window.mostrarAviso('Partido enviado al chat.','success');
       }catch(e){
         estadoEnvio.textContent=e.code==='permission-denied'?'No se pudo enviar: Firebase rechazó la operación. Revisá las reglas publicadas.':e.message||'No se pudo enviar. Intentá de nuevo.';
         throw e;
@@ -371,4 +378,109 @@ window.abrirOpcionesPersona=async origen=>{
       };
     }
   }catch(e){if(!cerrado){amigo.textContent='No se pudo consultar la amistad';}}
+};
+
+let chatsPrivados=[],stopChats=null,errorChats='',cerrarChatPrivado=null;
+function detenerChatsPrivados(){stopChats?.();stopChats=null;chatsPrivados=[];errorChats='';cerrarChatPrivado?.();}
+function iniciarChatsPrivados(uid){
+  errorChats='Cargando conversaciones…';
+  stopChats=onSnapshot(query(collection(db,'conversaciones'),where('participantes','array-contains',uid)),snap=>{
+    if(state.usuario?.uid!==uid)return;
+    chatsPrivados=snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>(b.actualizadoEn?.seconds||0)-(a.actualizadoEn?.seconds||0));
+    errorChats='';
+    if(tabAmigos==='chats'&&document.getElementById('amigos').classList.contains('active'))void renderAmigos();
+  },()=>{
+    if(state.usuario?.uid!==uid)return;
+    errorChats='No se pudieron cargar los chats. Revisá la conexión y que las reglas nuevas estén publicadas en Firebase.';
+    if(tabAmigos==='chats')void renderAmigos();
+  });
+}
+async function renderChatsPrivados(cont,uid,version){
+  if(errorChats)texto(cont,errorChats);
+  const vistos=new Set(),items=[];
+  for(const chat of chatsPrivados){const otro=chat.participantes.find(p=>p!==uid);if(otro){vistos.add(otro);items.push({uid:otro,preview:chat.ultimoTexto});}}
+  for(const amigo of relaciones.filter(r=>r.estado==='amigos'))if(!vistos.has(amigo.uid))items.push({uid:amigo.uid,preview:'Empezá una conversación'});
+  if(!items.length&&!errorChats)texto(cont,'Agregá un amigo para chatear y compartir partidos.');
+  for(const item of items){
+    const datos=await perfilDe(item.uid).catch(()=>({nombre:'Jugador'}));
+    if(version!==renderGeneracion||state.usuario?.uid!==uid)return;
+    const fila=boton('',()=>window.abrirChatAmigo(item.uid));fila.className='friend-chat-row';
+    const avatar=document.createElement('span');avatar.className='social-avatar';avatar.textContent=(datos.nombre||'?')[0];
+    if(typeof datos.foto==='string'&&/^(https?:\/\/|data:image\/jpeg;base64,)/.test(datos.foto)){const img=document.createElement('img');img.className='social-avatar';img.src=datos.foto;img.alt='';img.onerror=()=>img.replaceWith(avatar);fila.append(img);}else fila.append(avatar);
+    const info=document.createElement('span');info.className='friend-chat-preview';
+    const nombre=document.createElement('strong');nombre.textContent=datos.nombre||'Jugador';info.append(nombre);
+    texto(info,item.preview||'Conversación');fila.append(info);cont.append(fila);
+  }
+}
+function idChatPrivado(a,b){return [a,b].sort().join('__');}
+function guardarMensajePrivado(tx,uid,otro,contenido){
+  const participantes=[uid,otro].sort(),ref=doc(db,'conversaciones',idChatPrivado(uid,otro));
+  const mensaje=doc(collection(db,'conversaciones',idChatPrivado(uid,otro),'mensajes'));
+  const ultimoTexto=contenido.tipo==='partido'?'⚽ '+contenido.cancha:contenido.texto;
+  tx.set(mensaje,{...contenido,uid,creadoEn:serverTimestamp()});
+  tx.set(ref,{participantes,ultimoTexto,ultimoId:mensaje.id,actualizadoEn:serverTimestamp()});
+}
+window.abrirChatAmigo=async otro=>{
+  const uid=state.usuario?.uid;if(!uid||!idValido(otro)||otro===uid)return;
+  cerrarChatPrivado?.();
+  const dialogo=document.createElement('dialog');dialogo.className='friend-chat-dialog';dialogo.setAttribute('aria-label','Chat privado');
+  const header=document.createElement('header');header.className='friend-chat-header';
+  const titulo=document.createElement('strong');titulo.textContent='Chat';
+  let cerrado=false,stop=null,cantidad=100,primera=true;
+  const ajustar=()=>{dialogo.style.height=(window.visualViewport?.height||window.innerHeight)+'px';dialogo.style.top=(window.visualViewport?.offsetTop||0)+'px';};
+  const cerrar=()=>{if(cerrado)return;cerrado=true;stop?.();window.visualViewport?.removeEventListener('resize',ajustar);window.visualViewport?.removeEventListener('scroll',ajustar);window.removeEventListener('resize',ajustar);dialogo.close();dialogo.remove();cerrarChatPrivado=null;};
+  cerrarChatPrivado=cerrar;header.append(boton('←',cerrar),titulo);dialogo.append(header);
+  const lista=document.createElement('div');lista.className='friend-chat-messages';dialogo.append(lista);
+  const estado=document.createElement('p');estado.className='social-help friend-chat-status';estado.setAttribute('role','status');dialogo.append(estado);
+  const form=document.createElement('form');form.className='friend-chat-form';
+  const input=document.createElement('input');input.className='form-input';input.placeholder='Escribí un mensaje…';input.maxLength=2000;input.setAttribute('aria-label','Mensaje');input.autocomplete='off';
+  const enviar=document.createElement('button');enviar.className='social-action primary';enviar.type='submit';enviar.textContent='Enviar';form.append(input,enviar);dialogo.append(form);
+  form.onsubmit=async e=>{
+    e.preventDefault();const mensaje=input.value.trim();if(!mensaje||enviar.disabled)return;
+    enviar.disabled=true;estado.textContent='Enviando…';
+    try{
+      await runTransaction(db,async tx=>{
+        sesion(uid);
+        const a=await tx.get(doc(db,'usuarios',uid,'amistades',otro)),b=await tx.get(doc(db,'usuarios',otro,'amistades',uid));
+        if(!a.exists()||!b.exists()||a.data().estado!=='amigos'||b.data().estado!=='amigos')throw new Error('Solo podés enviar mensajes a tus amigos.');
+        guardarMensajePrivado(tx,uid,otro,{tipo:'texto',texto:mensaje,partidoId:'',cancha:'',fecha:'',hora:''});
+      });
+      if(!cerrado&&state.usuario?.uid===uid){if(input.value.trim()===mensaje)input.value='';estado.textContent='';input.focus();}
+    }catch(e){if(!cerrado)estado.textContent=e.code==='permission-denied'?'No se pudo enviar. Revisá la amistad y las reglas publicadas de Firebase.':e.message||'No se pudo enviar.';}
+    finally{enviar.disabled=false;}
+  };
+  const escuchar=()=>{
+    stop?.();estado.textContent='Cargando mensajes…';
+    stop=onSnapshot(query(collection(db,'conversaciones',idChatPrivado(uid,otro),'mensajes'),orderBy('creadoEn','desc'),limit(cantidad)),snap=>{
+      if(cerrado||state.usuario?.uid!==uid)return;
+      const bajar=primera||lista.scrollHeight-lista.scrollTop-lista.clientHeight<80;
+      const anterior=lista.scrollHeight,scroll=lista.scrollTop;lista.replaceChildren();estado.textContent='';
+      if(snap.size===cantidad)lista.append(boton('Ver mensajes anteriores',()=>{cantidad+=100;escuchar();}));
+      for(const item of [...snap.docs].reverse()){
+        const m=item.data(),bubble=document.createElement('div');bubble.className='friend-message'+(m.uid===uid?' own':'');
+        if(m.tipo==='partido'){
+          const nombre=document.createElement('strong');nombre.textContent='⚽ '+m.cancha;bubble.append(nombre);
+          texto(bubble,fechaPartido(m.fecha)+' · '+m.hora);
+          bubble.append(boton('Ver partido',()=>{cerrar();window.abrirPartidoCompartido(m.partidoId);},true));
+        }else{const contenido=document.createElement('p');contenido.textContent=m.texto;bubble.append(contenido);}
+        const hora=m.creadoEn?.toDate?.();if(hora){const time=document.createElement('small');time.textContent=hora.toLocaleString('es-UY',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});bubble.append(time);}
+        lista.append(bubble);
+      }
+      if(!snap.size)texto(lista,'Todavía no hay mensajes. ¡Saludá a tu amigo!');
+      lista.scrollTop=bajar?lista.scrollHeight:scroll+Math.max(0,lista.scrollHeight-anterior);primera=false;
+    },()=>{if(!cerrado)estado.textContent='No se pudo leer el chat. Revisá la conexión y publicá las reglas nuevas de Firebase.';});
+  };
+  document.body.append(dialogo);dialogo.showModal();ajustar();window.visualViewport?.addEventListener('resize',ajustar);window.visualViewport?.addEventListener('scroll',ajustar);window.addEventListener('resize',ajustar);dialogo.addEventListener('cancel',e=>{e.preventDefault();cerrar();});
+  perfilDe(otro).then(p=>{if(!cerrado)titulo.textContent=p.nombre||'Jugador';}).catch(()=>{});
+  // Crear el encabezado al primer mensaje; sin conversación aún, no consultar su subcolección.
+  const existente=await getDoc(doc(db,'conversaciones',idChatPrivado(uid,otro))).catch(()=>null);
+  if(cerrado)return;
+  if(existente?.exists())escuchar();
+  else{
+    texto(lista,'Escribí para empezar la conversación.');
+    // La lista de conversaciones se actualiza al primer envío de cualquiera de los dos.
+    stop=onSnapshot(query(collection(db,'conversaciones'),where('participantes','array-contains',uid)),snap=>{
+      if(!cerrado&&snap.docs.some(d=>d.id===idChatPrivado(uid,otro)))escuchar();
+    },()=>{if(!cerrado)estado.textContent='Publicá las reglas nuevas de Firebase para habilitar los chats.';});
+  }
 };
