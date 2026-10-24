@@ -493,10 +493,11 @@ window.abrirPerfilJugador = async (uid, nombre) => {
       ${portadaValida(p.portada) ? portadaHTML(p, 'modal-portada') : ''}
       <div class="modal-perfil-header">
         ${foto}
-        <div>
+        <div style="flex:1;min-width:0;">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;">${e(nombreVisible)}</div>
           ${p.posicion ? `<div style="display:inline-block;background:var(--green);color:#000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-top:4px;">${e(p.posicion)}</div>` : ''}
         </div>
+        ${window.botonOpcionesPersonaHTML?.(uid,nombreVisible)||''}
       </div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-num">${Number(p.partidos)||0}</div><div class="stat-label">Partidos</div></div>
@@ -513,12 +514,7 @@ window.abrirPerfilJugador = async (uid, nombre) => {
         ${(Array.isArray(p.jugadas)?p.jugadas:[]).filter(imagenPerfilSegura).map(url => `<div class="highlight-item" style="padding:0;overflow:hidden;"><img src="${e(url)}" alt="Jugada" style="width:100%;height:100%;object-fit:cover;"></div>`).join('')}
       </div>` : ''}`;
     document.querySelector('[data-opiniones-perfil]').onclick=()=>{cerrarModal();abrirOpiniones(uid,nombreVisible,irHome);};
-    if(uid && uid !== state.usuario?.uid){
-      const reporte=document.createElement('button');
-      reporte.className='social-share-link';reporte.style.color='var(--text-muted)';reporte.textContent='Reportar usuario';
-      reporte.onclick=()=>window.reportarContenido('usuario',uid,p.nombre||nombre);
-      document.getElementById('modalContent').append(reporte);
-    }
+
   } catch(e) {
     if(visita!==visitaPerfil) return;
     document.getElementById("modalContent").innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">No se pudo cargar el perfil</div>`;
