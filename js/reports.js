@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { db, doc, collection, onSnapshot, runTransaction, serverTimestamp } from './firebase.js';
+import { db, doc, getDoc, collection, onSnapshot, runTransaction, serverTimestamp } from './firebase.js';
 import { esAdmin } from './admin.js';
 let unsubscribe=null, reportes=[], errorCarga='', cerrarReporte=null, generacion=0;
 const motivos=['Conducta inapropiada','Información falsa','Spam','Otro motivo'];
@@ -48,6 +48,7 @@ window.reportarPartido=id=>{
   if(p && p.creadorUid!==state.usuario?.uid) window.reportarContenido('partido',id,p.cancha);
 };
 window.detenerReportesAdmin=()=>{
+  window.cerrarDetalleAdmin?.();
   generacion++;unsubscribe?.();unsubscribe=null;reportes=[];errorCarga='';cerrarReporte?.();
   document.getElementById('listaAdminReportes')?.replaceChildren();
 };
@@ -73,13 +74,19 @@ window.renderReportesAdmin=()=>{
   for(const r of pendientes){
     const fila=document.createElement('div');fila.className='partido-item';cont.append(fila);
     texto(fila,'strong',(r.tipo==='usuario'?'Usuario: ':'Partido: ')+(r.nombre||r.objetivoId));
+    const autor=texto(fila,'p','Reportado por: cargando…');autor.className='admin-muted';
+    if(r.autorUid)getDoc(doc(db,'usuarios',r.autorUid)).then(snap=>{
+      if(autor.isConnected&&esAdmin())autor.textContent='Reportado por: '+(snap.exists()?snap.data().nombre||r.autorUid:'Usuario eliminado ('+r.autorUid+')');
+    }).catch(()=>{if(autor.isConnected)autor.textContent='Reportado por: '+r.autorUid;});
+    else autor.textContent='Reportado por: sin datos';
     texto(fila,'p',r.motivo);if(r.detalle)texto(fila,'p',r.detalle);
-    if(r.tipo==='usuario') boton(fila,'Ver perfil',()=>window.abrirPerfilJugador(r.objetivoId,r.nombre));
+    const acciones=texto(fila,'div','');acciones.className='admin-actions';
+    if(r.tipo==='usuario') boton(acciones,'Ver perfil',()=>window.abrirPerfilJugador(r.objetivoId,r.nombre));
     else if(state.partidos.some(p=>p.id===r.objetivoId)){
-      boton(fila,'Ver partido',()=>window.abrirPartidoCompartido(r.objetivoId));
-      boton(fila,'Cancelar partido',()=>{if(esAdmin())window.abrirMotivoCancelacion(r.objetivoId);});
+      boton(acciones,'Ver partido',()=>window.abrirDetalleAdmin(r.objetivoId));
+
     }else texto(fila,'p','El partido ya no está disponible.');
-    const resolver=boton(fila,'Marcar revisado',async()=>{
+    const resolver=boton(acciones,'Marcar revisado',async()=>{
       if(resolver.disabled)return;
       resolver.disabled=true;
       try{
@@ -91,5 +98,10 @@ window.renderReportesAdmin=()=>{
         if(esAdmin())window.mostrarAviso('Reporte marcado como revisado.','success');
       }catch(e){window.mostrarAviso('No se pudo actualizar el reporte. Revisá los permisos de Firebase.','error');resolver.disabled=false;}
     });
+    if(r.tipo==='partido'&&state.partidos.some(p=>p.id===r.objetivoId)){
+      const cancelar=boton(fila,'Cancelar partido',()=>{if(esAdmin())window.abrirMotivoCancelacion(r.objetivoId);});
+      cancelar.classList.add('admin-danger');
+    }
   }
 };
+
