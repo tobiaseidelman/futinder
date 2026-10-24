@@ -687,11 +687,12 @@ window.verDetalle = (i) => {
           ${window.botonOpcionesPersonaHTML?.(s.uid,s.nombre)||''}
         </div>
         <div class="solicitud-actions">
-          <button class="solicitud-btn btn-rechazar" onclick="rechazar(${si})">❌ Rechazar</button>
-          <button class="solicitud-btn btn-aceptar" onclick="aceptar(${si})">✅ Aceptar</button>
+          <button class="solicitud-btn btn-rechazar" data-partido="${escaparJugador(p.id)}" data-jugador="${escaparJugador(s.uid||'')}" onclick="rechazar(this.dataset.partido,this.dataset.jugador)">❌ Rechazar</button>
+          <button class="solicitud-btn btn-aceptar" data-partido="${escaparJugador(p.id)}" data-jugador="${escaparJugador(s.uid||'')}" onclick="aceptar(this.dataset.partido,this.dataset.jugador)">✅ Aceptar</button>
         </div>
       </div>`).join('');
   document.getElementById("listaSolicitudes").innerHTML = htmlSol;
+  actualizarEstadoSolicitudes(p.id);
 
   window.actualizarBotonesAmistad?.();
   void cargarAvataresJugadores(document.getElementById("listaConfirmados"));
@@ -700,74 +701,62 @@ window.verDetalle = (i) => {
 };
 
 const aceptacionesEnCurso = new Set();
-window.aceptar = async (i) => {
-  const partido = state.partidos[state.idx];
-  const solicitud = partido?.solicitudes?.[i];
-  if(!partido || !solicitud?.uid || aceptacionesEnCurso.has(partido.id)) return;
-  const partidoId = partido.id;
-  const jugadorUid = solicitud.uid;
-  aceptacionesEnCurso.add(partidoId);
-  try {
-    const resultado = await runTransaction(db, async tx => {
-      const partidoRef = doc(db, "partidos", partidoId);
-      const snap = await tx.get(partidoRef);
-      if(!snap.exists()) throw new Error("Este partido ya no está disponible.");
-      const actual = snap.data();
-      if(getEstadoPartido(actual) !== 'activo') throw new Error('El partido ya empezó. La solicitud venció.');
-      const confirmados = actual.confirmados || [];
-      if(confirmados.some(c => uidDeConfirmado(c) === jugadorUid || (typeof c === 'string' && c === solicitud.nombre))){
-        throw new Error("Este jugador ya está confirmado.");
+function actualizarEstadoSolicitudes(partidoId){
+  for(const b of document.querySelectorAll('#listaSolicitudes button[data-partido]')){
+    if(b.dataset.partido!==partidoId)continue;
+    if(!b.dataset.etiqueta)b.dataset.etiqueta=b.textContent;
+    b.disabled=aceptacionesEnCurso.has(partidoId);
+    b.textContent=b.disabled?'Procesando…':b.dataset.etiqueta;
+    b.style.opacity=b.disabled?'.55':'';
+    b.setAttribute('aria-busy',String(b.disabled));
+  }
+}
+async function responderSolicitud(partidoId,jugadorUid,aceptar){
+  const uid=state.usuario?.uid;
+  if(!uid||!partidoId||!jugadorUid||aceptacionesEnCurso.has(partidoId))return;
+  aceptacionesEnCurso.add(partidoId);actualizarEstadoSolicitudes(partidoId);
+  try{
+    const resultado=await runTransaction(db,async tx=>{
+      if(state.usuario?.uid!==uid)throw new Error('La sesión cambió. Volvé a iniciar sesión.');
+      const ref=doc(db,'partidos',partidoId),snap=await tx.get(ref);
+      if(!snap.exists())throw new Error('Este partido ya no está disponible.');
+      const actual=snap.data();
+      if(actual.creadorUid!==uid)throw new Error('Solo el creador puede responder las solicitudes.');
+      if(getEstadoPartido(actual)!=='activo')throw new Error('El partido ya empezó. La solicitud venció.');
+      const confirmados=actual.confirmados||[],solicitudes=actual.solicitudes||[];
+      const jugador=solicitudes.find(s=>s.uid===jugadorUid);
+      if(!jugador)throw new Error('Esta solicitud ya fue respondida o cancelada.');
+      const cambios={solicitudes:solicitudes.filter(s=>s.uid!==jugadorUid)};
+      if(aceptar){
+        if(confirmados.some(c=>uidDeConfirmado(c)===jugadorUid||(typeof c==='string'&&c===jugador.nombre)))throw new Error('Este jugador ya está confirmado.');
+        const cantidad=Number(actual.jugadores),max=Number(actual.max);
+        if(!Number.isInteger(cantidad)||cantidad<confirmados.length||!Number.isInteger(max)||max<=0)throw new Error('No se pudo verificar el cupo del partido.');
+        if(cantidad>=max)throw new Error('El partido ya está completo. No podés aceptar más jugadores.');
+        cambios.confirmados=[...confirmados,{nombre:jugador.nombre,uid:jugadorUid}];
+        cambios.jugadores=cantidad+1;
       }
-      const jugador = (actual.solicitudes || []).find(s => s.uid === jugadorUid);
-      if(!jugador) throw new Error("Esta solicitud ya no está pendiente.");
-      const jugadores = Number(actual.jugadores);
-      const max = Number(actual.max);
-      if(!Number.isInteger(jugadores) || jugadores < 0 || !Number.isInteger(max) || max <= 0){
-        throw new Error("No se pudo verificar el cupo del partido.");
-      }
-      if(jugadores >= max) throw new Error("El partido ya está completo. No podés aceptar más jugadores.");
-      const cambios = {
-        confirmados: [...confirmados, {nombre: jugador.nombre, uid: jugador.uid}],
-        solicitudes: actual.solicitudes.filter(s => s.uid !== jugadorUid),
-        jugadores: jugadores + 1
-      };
-      tx.update(partidoRef, cambios);
-      tx.set(doc(db,'usuarios',jugadorUid,'notificaciones',partidoId+'_aceptado_'+(actual.versionHorario||0)),{
-        ...evidenciaAviso(actual,jugadorUid),tipo:'aceptado',texto:'Te aceptaron en '+actual.cancha+'. Mirá los detalles del partido.',
+      tx.update(ref,cambios);
+      tx.set(doc(db,'usuarios',jugadorUid,'notificaciones',partidoId+(aceptar?'_aceptado_':'_rechazada_')+(actual.versionHorario||0)),{
+        ...evidenciaAviso(actual,jugadorUid),tipo:aceptar?'aceptado':'rechazado',
+        texto:aceptar?'Te aceptaron en '+actual.cancha+'. Mirá los detalles del partido.':'Tu solicitud para '+actual.cancha+' no fue aceptada.',
         partidoId,visto:false,creadoEn:serverTimestamp()
       });
-      return { ...actual, ...cambios, id: partidoId };
+      return {...actual,...cambios,id:partidoId};
     });
-    const indice = state.partidos.findIndex(p => p.id === partidoId);
-    if(indice !== -1) state.partidos[indice] = resultado;
-    if(state.partidos[state.idx]?.id === partidoId) verDetalle(state.idx);
-
-  } catch(e) {
-    window.mostrarAviso(e.message || "No se pudo aceptar al jugador. Intentá de nuevo.", 'error');
-  } finally {
-    aceptacionesEnCurso.delete(partidoId);
+    if(state.usuario?.uid!==uid)return;
+    const indice=state.partidos.findIndex(p=>p.id===partidoId);
+    if(indice!==-1)state.partidos[indice]=resultado;
+    window.mostrarAviso(aceptar?'Jugador aceptado. Ya está confirmado.':'Solicitud rechazada.','success');
+  }catch(e){
+    if(state.usuario?.uid===uid)window.mostrarAviso(e.code==='permission-denied'?'Firebase no permitió responder la solicitud. Revisá que estén publicadas las reglas actualizadas.':e.message||'No se pudo responder. Intentá de nuevo.','error');
+  }finally{
+    aceptacionesEnCurso.delete(partidoId);actualizarEstadoSolicitudes(partidoId);
+    const indice=state.partidos.findIndex(p=>p.id===partidoId);
+    if(state.usuario?.uid===uid&&indice!==-1&&state.partidos[state.idx]?.id===partidoId&&document.getElementById('creador')?.classList.contains('active'))verDetalle(indice);
   }
-};
-
-window.rechazar = async (i) => {
-  const p = state.partidos[state.idx], solicitud = p?.solicitudes?.[i];
-  if(!p || !solicitud) return;
-  try {
-    await runTransaction(db, async tx => {
-      const ref = doc(db,'partidos',p.id), snap = await tx.get(ref);
-      if(!snap.exists()) return;
-      const actual = snap.data();
-      if(getEstadoPartido(actual) !== 'activo') throw new Error('El partido ya empezó. La solicitud venció.');
-      const coincide = s => solicitud.uid ? s.uid===solicitud.uid : s.nombre===solicitud.nombre;
-      if(!(actual.solicitudes||[]).some(coincide)) return;
-      tx.update(ref,{solicitudes:(actual.solicitudes||[]).filter(s=>!coincide(s))});
-      if(solicitud.uid) tx.set(doc(db,'usuarios',solicitud.uid,'notificaciones',p.id+'_rechazada_'+(actual.versionHorario||0)),{
-        ...evidenciaAviso(actual,solicitud.uid),tipo:'rechazado',texto:'Tu solicitud para '+actual.cancha+' no fue aceptada.',
-        partidoId:p.id,visto:false,creadoEn:serverTimestamp()
-      });
-    });
-  } catch(e){ window.mostrarAviso(e.message || 'No se pudo rechazar la solicitud.', 'error'); }
-};
+}
+window.aceptar=(partidoId,jugadorUid)=>responderSolicitud(partidoId,jugadorUid,true);
+window.rechazar=(partidoId,jugadorUid)=>responderSolicitud(partidoId,jugadorUid,false);
 
 let motivoCancelacionElegido = null;
 let motivoPartidoId = null;
