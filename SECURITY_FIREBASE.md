@@ -48,3 +48,9 @@ npm run test:rules
 Se usa exclusivamente el proyecto local `demo-futinder-security`. Las pruebas cubren accesos permitidos y denegados, cambios de dueño, perfiles, solicitudes, participantes, amistad, chats, notificaciones, reportes, reputación, F11 y duplicados.
 
 Las reglas de producción no se despliegan al ejecutar las pruebas. Para publicar se usa el editor de Firebase siguiendo los pasos anteriores.
+
+## Chats privados en Amigos
+
+Publicar nuevamente el archivo completo `firestore.rules` para habilitar `conversaciones/{id}/mensajes`. Solo sus dos participantes pueden leer, incluido el historial después de quitar una amistad. Para enviar se requiere amistad mutua. Los mensajes son inmutables y se guardan junto al resumen de conversación. Los partidos compartidos nuevos se guardan en el chat; los avisos anteriores siguen en la campana y no se migran automáticamente. Los mensajes de texto se ven dentro de Amigos (no son notificaciones push).
+
+Las 25 pruebas de `security/firestore.rules.test.mjs` pasaron en el emulador, incluidas amistad mutua, privacidad, autoría, inmutabilidad y partidos compartidos válidos. No se modificaron las reglas de producción desde estas pruebas.
