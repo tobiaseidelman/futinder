@@ -44,6 +44,7 @@ function persona(parent,uid,datos){
   }else b.append(avatar);
   const nombre=document.createElement('span');nombre.textContent=datos.nombre||'Jugador';b.append(nombre);
   b.onclick=()=>window.abrirPerfilJugador(uid,datos.nombre||'Jugador');parent.append(b);
+  const opciones=document.createElement('span');opciones.innerHTML=window.botonOpcionesPersonaHTML(uid,datos.nombre);parent.append(opciones);
 }
 function relacion(uid){return relaciones.find(r=>r.uid===uid);}
 async function dibujarUsuario(parent,uid,datos){
@@ -104,6 +105,7 @@ window.detenerSocial=()=>{
   amistadesCargadas=false;
   unsubscribe?.();unsubscribe=null;socialUid=null;relaciones=[];busqueda=[];perfiles.clear();buscando++;renderGeneracion++;
   cerrarCompartir?.();
+  cerrarMenuPersona?.();
   const buscar=document.getElementById('buscarAmigoBtn');if(buscar){buscar.disabled=false;buscar.textContent='Buscar';}
   document.getElementById('listaAmigos')?.replaceChildren();
   document.getElementById('resultadosAmigos')?.replaceChildren();
@@ -315,4 +317,46 @@ window.actualizarBotonesAmistad=()=>{
       };
     }
   }
+};
+
+let cerrarMenuPersona=null;
+const escaparPersona=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+window.botonOpcionesPersonaHTML=(uid,nombre)=>{
+  if(!idValido(uid)||uid===state.usuario?.uid)return '';
+  return '<button type="button" class="person-options" aria-label="Opciones de '+escaparPersona(nombre||'jugador')+'" aria-haspopup="dialog" data-uid="'+escaparPersona(uid)+'" data-nombre="'+escaparPersona(nombre||'Jugador')+'" onclick="event.stopPropagation();abrirOpcionesPersona(this)">⋯</button>';
+};
+window.abrirOpcionesPersona=async origen=>{
+  const uid=state.usuario?.uid,otro=origen.dataset.uid,nombre=origen.dataset.nombre||'Jugador';
+  if(!uid||!idValido(otro)||uid===otro)return;
+  cerrarMenuPersona?.();
+  const d=document.createElement('dialog');d.className='social-dialog person-options-dialog';d.setAttribute('aria-label','Opciones de '+nombre);
+  const titulo=document.createElement('h2');titulo.textContent=nombre;d.append(titulo);
+  let cerrado=false;
+  const cerrar=()=>{if(cerrado)return;cerrado=true;d.close();d.remove();cerrarMenuPersona=null;if(origen.isConnected)origen.focus({preventScroll:true});};
+  cerrarMenuPersona=cerrar;
+  const amigo=boton('Cargando amistad…',()=>{});amigo.disabled=true;d.append(amigo);
+  const reporte=boton('Reportar usuario',()=>{cerrar();window.reportarContenido('usuario',otro,nombre);});reporte.classList.add('person-report');d.append(reporte);
+  d.append(boton('Volver',cerrar));
+  d.addEventListener('cancel',e=>{e.preventDefault();cerrar();});
+  d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)cerrar();}});
+  document.body.append(d);d.showModal();
+  try{
+    const snap=await getDoc(doc(db,'usuarios',uid,'amistades',otro));
+    if(cerrado||state.usuario?.uid!==uid)return;
+    const r=snap.exists()?snap.data():null;
+    if(r?.estado==='amigos'){amigo.textContent='Ya son amigos';return;}
+    if(r?.estado==='pendiente'&&r.solicitanteUid===uid){amigo.textContent='Solicitud enviada';return;}
+    amigo.disabled=false;
+    if(r?.estado==='pendiente'){
+      amigo.textContent='Ver solicitud de amistad';
+      amigo.onclick=()=>{cerrar();window.cerrarModal?.();window.verAmigos('solicitudes');};
+    }else{
+      amigo.textContent='Agregar amigo';
+      amigo.onclick=async()=>{
+        if(amigo.disabled)return;amigo.disabled=true;
+        try{sesion(uid);await cambiarAmistad(otro,'solicitar');if(!cerrado)amigo.textContent='Solicitud enviada';}
+        catch(e){avisoError(e);if(!cerrado)amigo.disabled=false;}
+      };
+    }
+  }catch(e){if(!cerrado){amigo.textContent='No se pudo consultar la amistad';}}
 };
