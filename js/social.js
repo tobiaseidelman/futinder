@@ -463,10 +463,14 @@ window.abrirChatAmigo=async otro=>{
   const header=document.createElement('header');header.className='friend-chat-header';
   const titulo=document.createElement('strong');titulo.textContent='Chat';
   let cerrado=false,stop=null,cantidad=100,primera=true,ultimoRecibido=null;
+  const tarjetasPartidos=new Map();
+  const refrescarTarjetas=()=>{if(!cerrado)for(const actualizar of tarjetasPartidos.values())actualizar();};
+  const relojTarjetas=setInterval(refrescarTarjetas,15000);
+  window.addEventListener('futinder-partidos-actualizados',refrescarTarjetas);
   const marcarLeido=()=>{if(!cerrado&&!document.hidden&&ultimoRecibido)void leerChatPrivado(uid,otro,ultimoRecibido);};
   document.addEventListener('visibilitychange',marcarLeido);
   const ajustar=()=>{dialogo.style.height=(window.visualViewport?.height||window.innerHeight)+'px';dialogo.style.top=(window.visualViewport?.offsetTop||0)+'px';};
-  const cerrar=()=>{if(cerrado)return;cerrado=true;stop?.();document.removeEventListener('visibilitychange',marcarLeido);window.visualViewport?.removeEventListener('resize',ajustar);window.visualViewport?.removeEventListener('scroll',ajustar);window.removeEventListener('resize',ajustar);dialogo.close();dialogo.remove();cerrarChatPrivado=null;};
+  const cerrar=()=>{if(cerrado)return;cerrado=true;stop?.();clearInterval(relojTarjetas);window.removeEventListener('futinder-partidos-actualizados',refrescarTarjetas);tarjetasPartidos.clear();document.removeEventListener('visibilitychange',marcarLeido);window.visualViewport?.removeEventListener('resize',ajustar);window.visualViewport?.removeEventListener('scroll',ajustar);window.removeEventListener('resize',ajustar);dialogo.close();dialogo.remove();cerrarChatPrivado=null;};
   cerrarChatPrivado=cerrar;header.append(boton('←',cerrar),titulo);dialogo.append(header);
   const lista=document.createElement('div');lista.className='friend-chat-messages';dialogo.append(lista);
   const estado=document.createElement('p');estado.className='social-help friend-chat-status';estado.setAttribute('role','status');dialogo.append(estado);
@@ -494,14 +498,35 @@ window.abrirChatAmigo=async otro=>{
       ultimoRecibido=snap.docs.find(d=>d.data().uid!==uid)?.id||null;
       marcarLeido();
       const bajar=primera||lista.scrollHeight-lista.scrollTop-lista.clientHeight<80;
-      const anterior=lista.scrollHeight,scroll=lista.scrollTop;lista.replaceChildren();estado.textContent='';
+      const anterior=lista.scrollHeight,scroll=lista.scrollTop;tarjetasPartidos.clear();lista.replaceChildren();estado.textContent='';
       if(snap.size===cantidad)lista.append(boton('Ver mensajes anteriores',()=>{cantidad+=100;escuchar();}));
       for(const item of [...snap.docs].reverse()){
         const m=item.data(),bubble=document.createElement('div');bubble.className='friend-message'+(m.uid===uid?' own':'');
         if(m.tipo==='partido'){
-          const nombre=document.createElement('strong');nombre.textContent='⚽ '+m.cancha;bubble.append(nombre);
-          texto(bubble,fechaPartido(m.fecha)+' · '+m.hora);
-          bubble.append(boton('Ver partido',()=>{cerrar();window.abrirPartidoCompartido(m.partidoId);},true));
+          bubble.classList.add('shared-match-message');
+          const tarjeta=document.createElement('div');tarjeta.className='shared-match-card';
+          const foto=document.createElement('img');foto.alt='';foto.loading='lazy';foto.hidden=true;
+          foto.onerror=()=>{foto.hidden=true;};
+          const cuerpo=document.createElement('div');cuerpo.className='shared-match-body';
+          const nombre=document.createElement('strong'),fecha=document.createElement('p'),cupos=document.createElement('p'),situacion=document.createElement('span');
+          situacion.className='shared-match-status';
+          const abrir=boton('Ver partido',()=>{cerrar();window.abrirPartidoCompartido(m.partidoId);},true);
+          cuerpo.append(nombre,fecha,cupos,situacion,abrir);tarjeta.append(foto,cuerpo);bubble.append(tarjeta);
+          const actualizar=()=>{
+            const p=state.partidos.find(p=>p.id===m.partidoId);
+            const estado=p?getEstadoPartido(p):null;
+            nombre.textContent=p?.cancha||m.cancha||'Partido compartido';
+            fecha.textContent=fechaPartido(p?.fecha||m.fecha)+' · '+(p?.hora||m.hora||'');
+            const url=typeof p?.canchaFoto==='string'&&/^https?:\/\//.test(p.canchaFoto)?p.canchaFoto:'';
+            if(foto.dataset.url!==url){foto.dataset.url=url;foto.hidden=!url;if(url)foto.src=url;}
+            const disponibles=p?Math.max(0,Number(p.max)-Number(p.jugadores)):0;
+            cupos.textContent=p?'Fútbol '+p.tipo+' · '+p.jugadores+'/'+p.max+' jugadores':'';
+            cupos.hidden=!p;
+            situacion.textContent=!p?'Cancelado o no disponible':estado==='finalizado'?'Finalizado':estado==='en curso'?'Ya empezó':disponibles>0?disponibles+' lugar'+(disponibles===1?' disponible':'es disponibles'):'Completo';
+            situacion.classList.toggle('available',!!p&&estado==='activo'&&disponibles>0);
+            abrir.disabled=!p;abrir.textContent=p?'Ver partido':'No disponible';
+          };
+          tarjetasPartidos.set(item.id,actualizar);actualizar();
         }else{const contenido=document.createElement('p');contenido.textContent=m.texto;bubble.append(contenido);}
         bubble.append(horaMensaje(m.creadoEn));
         const fila=document.createElement('div');fila.className='message-row'+(m.uid===uid?' own':'');
