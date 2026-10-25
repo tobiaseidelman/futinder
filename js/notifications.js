@@ -23,7 +23,26 @@ function iniciarNotificaciones(){
     window.mostrarAviso('No pudimos cargar las notificaciones. Revisá tu conexión.', 'error');
   });
 }
+// Los puntos reflejan avisos sin leer y pendientes reales, sin nuevas consultas.
+window.actualizarPuntosNav = () => {
+  const avisos = state.usuario ? state.notificaciones.filter(n=>!n.visto) : [];
+  const social = state.usuario ? window.novedadesSocial?.() || {} : {};
+  const partidos = new Set(['solicitud','aceptado','rechazado','cancelado','bajada','calificar','solicitud_vencida','solicitud_reprogramada','respuesta_horario','reprogramado','partido_compartido']);
+  const grupos = {
+    amigos: Boolean(social.chats || social.solicitudes || avisos.some(n=>n.tipo==='amistad_aceptada')),
+    partidos: avisos.some(n=>partidos.has(n.tipo)),
+    perfil: avisos.some(n=>n.tipo==='tag_malo')
+  };
+  document.querySelectorAll('[data-nav-alert]').forEach(boton=>{
+    const activo=Boolean(grupos[boton.dataset.navAlert]);
+    boton.classList.toggle('has-news',activo);
+    const nombre={amigos:'Amigos',partidos:'Mis partidos',perfil:'Perfil'}[boton.dataset.navAlert];
+    boton.setAttribute('aria-label',nombre+(activo?', novedades pendientes':''));
+    boton.title=activo ? 'Tenés novedades pendientes' : nombre;
+  });
+};
 function actualizarBadge(){
+  window.actualizarPuntosNav();
   const total = state.notificaciones.filter(n=>!n.visto).length;
   const badge = document.getElementById('badgeDot');
   if(!badge)return;
