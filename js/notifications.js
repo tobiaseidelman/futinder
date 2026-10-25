@@ -24,10 +24,27 @@ function iniciarNotificaciones(){
   });
 }
 const tiposNovedadPartido = new Set(['solicitud','aceptado','rechazado','cancelado','bajada','calificar','solicitud_vencida','solicitud_reprogramada','respuesta_horario','reprogramado','partido_compartido']);
-function novedadPartidoRelevante(n){
+// Un aviso puede conservarse en la campana aunque el partido ya no esté
+// en Mis partidos. Solo las novedades con una tarjeta visible encienden la barra.
+function seccionNovedadPartido(n){
+  const uid=state.usuario?.uid,nombre=state.perfil?.nombre;
+  if(!uid || !nombre || n.visto || !tiposNovedadPartido.has(n.tipo)) return null;
   const p=state.partidos.find(p=>p.id===n.partidoId);
-  return !p || getEstadoPartido(p)!=='finalizado' || tieneCalificacionesPendientes(p);
+  if(!p) return null;
+  const estado=getEstadoPartido(p);
+  const creador=p.creadorUid===uid;
+  const confirmado=(p.confirmados||[]).some(c=>typeof c==='string'?c===nombre:c.uid?c.uid===uid:c.nombre===nombre);
+  const oculto=(p.ocultoParaUid||[]).includes(uid)||(p.ocultoPara||[]).includes(nombre);
+  if(estado==='finalizado'){
+    const visible=creador?!p.ocultoCreador:confirmado&&!oculto;
+    return visible&&tieneCalificacionesPendientes(p)?'finalizados':null;
+  }
+  if((creador||p.creador===nombre)&&!p.ocultoCreador) return 'creados';
+  if(confirmado&&!oculto&&!creador) return 'confirmados';
+  if(estado==='activo'&&(p.solicitudes||[]).some(s=>s.uid===uid)&&!confirmado) return 'pendientes';
+  return null;
 }
+function novedadPartidoRelevante(n){ return Boolean(seccionNovedadPartido(n)); }
 window.partidoTieneNovedades = id => Boolean(state.usuario && state.notificaciones.some(n=>n.partidoId===id && !n.visto && tiposNovedadPartido.has(n.tipo) && novedadPartidoRelevante(n)));
 const lecturasPartido = new Set();
 window.leerNovedadesPartido = async id => {
@@ -71,12 +88,8 @@ window.actualizarPuntosNav = () => {
   const secciones = {creados:false,pendientes:false,confirmados:false,finalizados:false};
   for(const aviso of avisos){
     if(!partidos.has(aviso.tipo)) continue;
-    const partido=state.partidos.find(p=>p.id===aviso.partidoId);
-    let destino='confirmados';
-    if(aviso.tipo==='calificar' || (partido && getEstadoPartido(partido)==='finalizado')) destino='finalizados';
-    else if(partido && (partido.creadorUid===state.usuario?.uid || (!partido.creadorUid && partido.creador===state.perfil?.nombre))) destino='creados';
-    else if(['rechazado','solicitud_vencida','solicitud_reprogramada','partido_compartido'].includes(aviso.tipo)) destino='pendientes';
-    secciones[destino]=true;
+    const destino=seccionNovedadPartido(aviso);
+    if(destino) secciones[destino]=true;
   }
   const pestanas = [
     ['tab-creados','Creados',secciones.creados],
