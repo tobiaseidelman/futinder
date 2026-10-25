@@ -118,6 +118,15 @@ service cloud.firestore {
           && getAfter(matchPath(request.resource.data.partidoId)).data.ultimaCalificacion == {'autorUid':request.auth.uid,'targetUid':uid,'opinionId':id};
         allow update,delete: if false;
       }
+      match /lecturasChats/{chatId} {
+        allow read: if signed() && uid == request.auth.uid;
+        allow create,update: if signed() && uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['ultimoId','leidoEn'])
+          && request.resource.data.leidoEn == request.time
+          && request.auth.uid in get(/databases/$(database)/documents/conversaciones/$(chatId)).data.participantes
+          && request.resource.data.ultimoId == get(/databases/$(database)/documents/conversaciones/$(chatId)).data.recibidos[uid];
+        allow delete: if false;
+      }
       match /notificaciones/{id} {
         function own() { return signed() && uid == request.auth.uid; }
         function friendNotice(n) {
@@ -157,11 +166,21 @@ service cloud.firestore {
           return n.emisorUid == request.auth.uid && r.deUid == request.auth.uid && !exists(ratingPath(uid,n.opinionId))
             && n.tagId in ['llega_tarde','no_pasa','mala_onda','no_corre','no_define','malos_pases','falta_tecnica','brusco','sin_ganas'] && n.tagId in r.tags && getAfter(userPath(uid)).data.tagContadores[n.tagId] % 3 == 0;
         }
+        function privateNotice(n) {
+          let c=getAfter(/databases/$(database)/documents/conversaciones/$(n.chatId)).data;
+          let path=/databases/$(database)/documents/conversaciones/$(n.chatId)/mensajes/$(n.mensajeId);
+          let m=getAfter(path).data;
+          return n.deUid == request.auth.uid && uid != request.auth.uid && id == 'chat_'+request.auth.uid
+            && uid in c.participantes && request.auth.uid in c.participantes
+            && c.recibidos[uid] == n.mensajeId && !exists(path)
+            && m.uid == request.auth.uid && m.tipo == 'texto' && m.creadoEn == request.time;
+        }
         function validNotice() {
           let n=request.resource.data;
-          return signed() && n.keys().hasOnly(['tipo','texto','visto','creadoEn','partidoId','deUid','solicitanteUid','versionHorario','emisorUid','receptorConfirmado','receptorSolicitud','opinionId','tagId'])
+          return signed() && n.keys().hasOnly(['tipo','texto','visto','creadoEn','partidoId','deUid','solicitanteUid','versionHorario','emisorUid','receptorConfirmado','receptorSolicitud','opinionId','tagId','chatId','mensajeId'])
             && n.texto is string && n.texto.size() <= 3000 && n.visto == false && n.creadoEn == request.time
-            && (n.tipo in ['amistad_solicitud','amistad_aceptada'] ? friendNotice(n)
+            && (n.tipo == 'mensaje_privado' ? privateNotice(n)
+              : n.tipo in ['amistad_solicitud','amistad_aceptada'] ? friendNotice(n)
               : n.tipo == 'partido_compartido' ? sharedNotice(n)
               : n.tipo == 'tag_malo' ? tagNotice(n) : matchNotice(n));
         }
@@ -274,8 +293,12 @@ service cloud.firestore {
         let n=request.resource.data;
         let msgPath=/databases/$(database)/documents/conversaciones/$(chatId)/mensajes/$(n.ultimoId);
         let m=getAfter(msgPath).data;
-        return n.keys().hasOnly(['participantes','ultimoTexto','ultimoId','actualizadoEn'])
+        return n.keys().hasOnly(['participantes','ultimoTexto','ultimoId','actualizadoEn','recibidos'])
           && members(n.participantes) && friends(n.participantes)
+          && ((!('recibidos' in n) && (!exists(/databases/$(database)/documents/conversaciones/$(chatId)) || !('recibidos' in resource.data))) || (n.recibidos is map
+            && n.recibidos.keys().hasOnly(n.participantes)
+            && n.recibidos[n.participantes[0] == request.auth.uid ? n.participantes[1] : n.participantes[0]] == n.ultimoId
+            && n.recibidos.get(request.auth.uid,'') == (!exists(/databases/$(database)/documents/conversaciones/$(chatId)) ? '' : resource.data.get('recibidos',{}).get(request.auth.uid,''))))
           && n.actualizadoEn == request.time && !exists(msgPath)
           && m.uid == request.auth.uid && m.creadoEn == request.time
           && n.ultimoTexto == (m.tipo == 'partido' ? '⚽ '+m.cancha : m.texto);
