@@ -524,11 +524,20 @@ function renderTabPartidos(){
       let fechaStr = p.fecha ? `📅 ${fechaPartido(p.fecha)} · ` : '';
       let eliminarFn = esCreador ? `eliminarDeCreados('${p.id}')` : `eliminarDeConfirmados('${p.id}')`;
       let verFn = esCreador ? `verDetalle(${ri})` : `verInfoPartido(${ri})`;
-      html += `<div class="partido-item" style="position:relative;" onclick="${verFn}">
+      const nuevo=window.partidoTieneNovedades?.(p.id);
+      const porCalificar=(p.confirmados||[]).some(c=>{
+        const nombre=nombreDeConfirmado(c),uid=uidDeConfirmado(c);
+        const propio=uid ? uid===state.usuario.uid : nombre===state.perfil.nombre;
+        return !propio && !(typeof c==='object' && c.pendienteReconfirmar) && !esperaReconfirmacion(p)
+          && !((p.calificacionesPorUid||{})[encodeURIComponent(state.usuario.uid)]||[]).includes(uid)
+          && !((p.calificaciones||{})[state.perfil.nombre]||[]).includes(nombre);
+      });
+      html += `<div class="partido-item finished-history-item ${nuevo?'is-unseen':''}" style="position:relative;" onclick="${verFn}">
         <button onclick="event.stopPropagation();${eliminarFn}" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;">🗑️</button>
-        <div class="partido-item-title">${p.cancha}${estadoBadge('finalizado')}</div>
+        <div class="partido-item-title">${nuevo?'<span class="finished-unseen-dot" role="img" aria-label="Novedades sin ver"></span>':''}${escaparJugador(p.cancha)}${estadoBadge('finalizado')}</div>
         <div class="partido-item-sub">${fechaStr}🕓 ${p.hora} · ⚽ Fútbol ${p.tipo} · 👥 ${p.jugadores}/${p.max}</div>
         <div class="partido-item-sub" style="margin-top:4px;">${esCreador?'👨‍🔧 Creador':'✅ Confirmado'} · Finalizado</div>
+        ${porCalificar?'<span class="finished-rating-pending">★ Por calificar</span>':''}
       </div>`;
     });
   }
@@ -1020,6 +1029,7 @@ window.verInfoPartido = (i) => {
     window.actualizarBotonesAmistad?.();
     void cargarAvataresJugadores(document.getElementById('infoPartidoContent'));
     cambiarPantalla('infoPartido');
+    void window.leerNovedadesPartido?.(p.id);
     return;
   }
   let fechaStr = fechaPartido(p.fecha);
