@@ -534,3 +534,12 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
 .friend-chat-row.is-unread .friend-chat-preview strong{color:var(--green)}
 .friend-chat-row.is-unread .friend-chat-preview p{color:#e4ebdf;font-weight:600}
 .chat-unread-dot{width:8px;height:8px;flex-shrink:0;border-radius:50%;background:var(--green)}
+
+/* Indicador discreto de novedades en todas las barras de navegación. */
+.navbar .nav-icon { position:relative; }
+.navbar .nav-btn.has-news .nav-icon::after {
+  content:''; position:absolute; top:0; right:-7px;
+  width:8px; height:8px; border-radius:50%;
+  background:var(--red,#ff4d4d); border:2px solid var(--surface,#141414);
+  box-sizing:content-box; pointer-events:none;
+}
