@@ -137,6 +137,7 @@ window.selTipo = (btn, t) => { state.tipoSel=t; btn.parentElement.querySelectorA
 const origCambiarPantalla = window.cambiarPantalla;
 window.cambiarPantalla = (id) => {
   origCambiarPantalla(id);
+  if(id === "misPartidos" && state.usuario && state.perfil) renderTabPartidos();
   if(id === 'crear' && !creandoPartido){
     pedirUbicacion();
     state.canchaSeleccionada = null;
@@ -465,6 +466,17 @@ window.retirarSolicitud = async partidoId => {
   }
 };
 
+export function tieneCalificacionesPendientes(p){
+  if(!p || !state.usuario || !state.perfil || getEstadoPartido(p)!=='finalizado') return false;
+  return (p.confirmados||[]).some(c=>{
+        const nombre=nombreDeConfirmado(c),uid=uidDeConfirmado(c);
+        const propio=uid ? uid===state.usuario.uid : nombre===state.perfil.nombre;
+        return !propio && !(typeof c==='object' && c.pendienteReconfirmar) && !esperaReconfirmacion(p)
+          && !((p.calificacionesPorUid||{})[encodeURIComponent(state.usuario.uid)]||[]).includes(uid)
+          && !((p.calificaciones||{})[state.perfil.nombre]||[]).includes(nombre);
+  });
+}
+
 function renderTabPartidos(){
   const contador = document.getElementById('pendientesCount');
   if(contador){
@@ -525,13 +537,7 @@ function renderTabPartidos(){
       let eliminarFn = esCreador ? `eliminarDeCreados('${p.id}')` : `eliminarDeConfirmados('${p.id}')`;
       let verFn = esCreador ? `verDetalle(${ri})` : `verInfoPartido(${ri})`;
       const nuevo=window.partidoTieneNovedades?.(p.id);
-      const porCalificar=(p.confirmados||[]).some(c=>{
-        const nombre=nombreDeConfirmado(c),uid=uidDeConfirmado(c);
-        const propio=uid ? uid===state.usuario.uid : nombre===state.perfil.nombre;
-        return !propio && !(typeof c==='object' && c.pendienteReconfirmar) && !esperaReconfirmacion(p)
-          && !((p.calificacionesPorUid||{})[encodeURIComponent(state.usuario.uid)]||[]).includes(uid)
-          && !((p.calificaciones||{})[state.perfil.nombre]||[]).includes(nombre);
-      });
+      const porCalificar=tieneCalificacionesPendientes(p);
       html += `<div class="partido-item finished-history-item ${nuevo?'is-unseen':''}" style="position:relative;" onclick="${verFn}">
         <button onclick="event.stopPropagation();${eliminarFn}" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;">🗑️</button>
         <div class="partido-item-title">${nuevo?'<span class="finished-unseen-dot" role="img" aria-label="Novedades sin ver"></span>':''}${escaparJugador(p.cancha)}${estadoBadge('finalizado')}</div>
@@ -1020,7 +1026,7 @@ window.verInfoPartido = (i) => {
         </div>
         ${p.canchaDireccion?`<div class="finished-location"><span aria-hidden="true">⌖</span><span>${esc(p.canchaDireccion)}</span></div>`:''}
         <div class="finished-section"><h3>Con quién jugaste</h3><span>${esc(p.jugadores)} jugadores</span></div>
-        <p class="finished-hint">Dejá tu opinión sobre tus compañeros.</p>
+        <p class="finished-hint">${tieneCalificacionesPendientes(p)?'Dejá tu opinión sobre tus compañeros.':'No tenés calificaciones pendientes.'}</p>
         <div class="finished-roster">${jugadores||'<p class="finished-hint">No hay jugadores registrados.</p>'}</div>
         <div class="finished-group">${grupoDelCreadorHTML(p)}</div>
         <button class="finished-chat" onclick="abrirChatIdx(${i})">💬 Ver chat del partido <span aria-hidden="true">→</span></button>
