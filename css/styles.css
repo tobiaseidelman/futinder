@@ -594,3 +594,14 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
 .partido-item.finished-history-item.is-unseen{border-color:#396b30;background:#142011}
 .finished-unseen-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:8px;vertical-align:middle}
 .finished-rating-pending{display:inline-block;margin-top:10px;padding:4px 8px;border-radius:6px;background:#28251b;color:#dfca88;font-size:11px;font-weight:600}
+
+/* Autor y hora legibles en chats de partidos y de amigos. */
+.message-row{display:flex;align-items:flex-end;gap:8px;width:100%;flex-shrink:0;margin:4px 0}
+.message-row.own{flex-direction:row-reverse}
+.message-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:#292929;color:#bbb;display:flex;align-items:center;justify-content:center;font-size:12px;margin-bottom:2px}
+.message-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.message-row .msg,.message-row .friend-message{min-width:0;max-width:calc(100% - 46px);margin:0;box-sizing:border-box}
+.message-row .message-time{display:block;font-size:10px;line-height:1.3;text-align:right;margin-top:5px;color:#999;white-space:nowrap}
+.message-row .msg-own .message-time{color:#24541a}
+.message-row .friend-message.own .message-time{color:#adbaa8}
+.friend-chat-messages .message-row{margin:10px 0}
