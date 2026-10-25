@@ -27,7 +27,12 @@ export function horaMensaje(timestamp){
   const fecha=timestamp?.toDate?.();
   if(fecha&&!Number.isNaN(fecha.getTime())){
     time.dateTime=fecha.toISOString();
-    time.textContent=fecha.toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit',hour12:false});
+    const ahora=new Date();
+    const mismoDia=fecha.getFullYear()===ahora.getFullYear() && fecha.getMonth()===ahora.getMonth() && fecha.getDate()===ahora.getDate();
+    const hora=fecha.toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit',hour12:false});
+    const opcionesFecha={day:'2-digit',month:'2-digit'};
+    if(fecha.getFullYear()!==ahora.getFullYear()) opcionesFecha.year='numeric';
+    time.textContent=mismoDia ? hora : hora+' · '+fecha.toLocaleDateString('es-UY',opcionesFecha);
     time.title=fecha.toLocaleString('es-UY');
   }else time.textContent='Enviando…';
   return time;
