@@ -589,3 +589,8 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
   border-radius:50%;background:var(--red,#ff4d4d);
   margin-left:5px;vertical-align:middle;flex-shrink:0;
 }
+
+.finished-history-item .partido-item-title{padding-right:24px}
+.partido-item.finished-history-item.is-unseen{border-color:#396b30;background:#142011}
+.finished-unseen-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:8px;vertical-align:middle}
+.finished-rating-pending{display:inline-block;margin-top:10px;padding:4px 8px;border-radius:6px;background:#28251b;color:#dfca88;font-size:11px;font-weight:600}
