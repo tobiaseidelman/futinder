@@ -582,3 +582,10 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
 .finished-chat span{color:var(--green)}
 .finished-report{display:block;margin:14px auto 0!important;color:#888!important;font-size:12px!important}
 @media(min-width:390px){.finished-player{grid-template-columns:40px minmax(0,1fr) auto}.finished-player-actions{grid-column:3;grid-row:1}}
+
+/* La pestaña señala dónde está la novedad sin reemplazar sus contadores. */
+.section-has-news::after {
+  content:'';display:inline-block;width:7px;height:7px;min-width:7px;
+  border-radius:50%;background:var(--red,#ff4d4d);
+  margin-left:5px;vertical-align:middle;flex-shrink:0;
+}
