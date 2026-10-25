@@ -369,6 +369,17 @@ function getConfirmadoItemHTML(c, p, estado){
       ? `<span style="color:var(--green);font-size:12px;white-space:nowrap;">✅ Calificado</span>`
       : `<button onclick="abrirModalRating('${nombre}','${p.id}','${p.creadorUid}')" style="background:var(--surface2);border:1px solid #333;border-radius:8px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;">⭐ Calificar</button>`;
   }
+  if(estado === 'finalizado'){
+    const opciones = !esYo && jugadorUid ? (window.botonOpcionesPersonaHTML?.(jugadorUid,nombre)||'') : '';
+    const calificar = !esYo && !pendiente && !esperaReconfirmacion(p)
+      ? (yaCalifique ? '<span class="finished-rated">✓ Calificado</span>' : `<button class="finished-rate" data-nombre="${escaparJugador(nombre)}" data-partido="${escaparJugador(p.id)}" data-creador="${escaparJugador(p.creadorUid)}" onclick="abrirModalRating(this.dataset.nombre,this.dataset.partido,this.dataset.creador)">★ Calificar</button>`)
+      : '';
+    return `<div class="finished-player">
+      ${avatarJugadorHTML(jugadorUid,nombre)}
+      <div class="finished-person"><strong>${escaparJugador(nombre)}</strong><span>${esCreador?'Organizador':esYo?'Vos':'Jugador'}${esCreador&&esYo?' · Vos':''}${pendiente?' · Sin reconfirmar':''}</span></div>
+      <div class="finished-player-actions">${opciones}${calificar}</div>
+    </div>`;
+  }
   if(!esYo && jugadorUid) accion = (window.botonOpcionesPersonaHTML?.(jugadorUid,nombre)||'') + accion;
   return `<div class="confirmado-item" style="justify-content:space-between;flex-wrap:wrap;gap:10px;">
     <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
@@ -663,6 +674,7 @@ window.verDetalle = (i) => {
   let p = state.partidos[i];
   document.getElementById("creadorTitle").textContent = p.cancha;
   let estadoCreador = getEstadoPartido(p);
+  if(estadoCreador === "finalizado"){ window.verInfoPartido(i); return; }
   const compartir = document.querySelector('#creador [onclick="compartirPartidoActual()"]');
   if(compartir) compartir.style.display = estadoCreador === 'activo' ? '' : 'none';
   const solicitudesVigentes = estadoCreador === 'activo' ? (p.solicitudes || []) : [];
@@ -981,6 +993,35 @@ window.verInfoPartido = (i) => {
   document.getElementById("infoPartidoTitle").textContent = p.cancha;
 
   let estado = getEstadoPartido(p);
+  document.getElementById('infoPartidoContent').classList.toggle('finished-content',estado==='finalizado');
+  if(estado==='finalizado'){
+    document.getElementById('infoPartidoTitle').textContent='Partido finalizado';
+    const esc=escaparJugador;
+    const foto=typeof p.canchaFoto==='string' && /^https?:\/\//.test(p.canchaFoto) ? p.canchaFoto : 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=600';
+    const jugadores=(p.confirmados||[]).map(c=>getConfirmadoItemHTML(c,p,estado)).join('');
+    document.getElementById('infoPartidoContent').innerHTML=`
+      <div class="finished-hero">
+        <img src="${esc(foto)}" alt="" />
+        <div class="finished-hero-text"><span>PARTIDO FINALIZADO</span><h2>${esc(p.cancha)}</h2><p>Fútbol ${esc(p.tipo)} · ${esc(p.duracion||'1h')} de juego</p></div>
+      </div>
+      <div class="finished-body">
+        <div class="finished-summary">
+          <div><span>Fecha y hora</span><strong>${esc(fechaPartido(p.fecha))}</strong><p>${esc(p.hora)} h</p></div>
+          <div><span>Por persona</span><strong>$${esc(p.precio||0)}</strong><p>UYU</p></div>
+        </div>
+        ${p.canchaDireccion?`<div class="finished-location"><span aria-hidden="true">⌖</span><span>${esc(p.canchaDireccion)}</span></div>`:''}
+        <div class="finished-section"><h3>Con quién jugaste</h3><span>${esc(p.jugadores)} jugadores</span></div>
+        <p class="finished-hint">Dejá tu opinión sobre tus compañeros.</p>
+        <div class="finished-roster">${jugadores||'<p class="finished-hint">No hay jugadores registrados.</p>'}</div>
+        <div class="finished-group">${grupoDelCreadorHTML(p)}</div>
+        <button class="finished-chat" onclick="abrirChatIdx(${i})">💬 Ver chat del partido <span aria-hidden="true">→</span></button>
+        <button class="social-share-link finished-report" data-id="${esc(p.id)}" onclick="reportarPartido(this.dataset.id)">Reportar partido</button>
+      </div>`;
+    window.actualizarBotonesAmistad?.();
+    void cargarAvataresJugadores(document.getElementById('infoPartidoContent'));
+    cambiarPantalla('infoPartido');
+    return;
+  }
   let fechaStr = fechaPartido(p.fecha);
   let confirmados = p.confirmados || [];
   let fill = Math.round((p.jugadores / p.max) * 100);
