@@ -108,6 +108,7 @@ window.detenerSocial=()=>{
   detenerChatsPrivados();
   amistadesCargadas=false;
   unsubscribe?.();unsubscribe=null;socialUid=null;relaciones=[];busqueda=[];perfiles.clear();buscando++;renderGeneracion++;
+  window.actualizarPuntosNav?.();
   cerrarCompartir?.();
   cerrarMenuPersona?.();
   const buscar=document.getElementById('buscarAmigoBtn');if(buscar){buscar.disabled=false;buscar.textContent='Buscar';}
@@ -122,6 +123,7 @@ window.iniciarSocial=()=>{
     if(socialUid!==uid||state.usuario?.uid!==uid) return;
     relaciones=snap.docs.map(d=>({...d.data(),uid:d.id}));
     amistadesCargadas=true;
+    window.actualizarPuntosNav?.();
     window.actualizarBotonesAmistad();
     if(document.getElementById('amigos').classList.contains('active')) void renderAmigos();
   },()=>{
@@ -383,7 +385,12 @@ window.abrirOpcionesPersona=async origen=>{
 let chatsPrivados=[],stopChats=null,stopLecturas=null,lecturasChats=new Map(),errorChats='',cerrarChatPrivado=null;
 const lecturasEnCurso=new Set();
 function chatSinLeer(chat,uid=state.usuario?.uid){return Boolean(chat.recibidos?.[uid]&&lecturasChats.get(chat.id)!==chat.recibidos[uid]);}
+window.novedadesSocial = () => ({
+  chats: chatsPrivados.some(c=>chatSinLeer(c)),
+  solicitudes: relaciones.some(r=>r.estado==='pendiente' && r.solicitanteUid!==state.usuario?.uid)
+});
 function actualizarContadorChats(){
+ window.actualizarPuntosNav?.();
  const total=chatsPrivados.filter(c=>chatSinLeer(c)).length,tab=document.getElementById('tabChatsAmigos');
  if(tab){tab.textContent='Chats';if(total){const b=document.createElement('span');b.className='chat-unread-count';b.textContent=total;tab.append(b);}tab.setAttribute('aria-label','Chats, '+total+' conversaciones sin leer');}
 }
