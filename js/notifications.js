@@ -34,7 +34,7 @@ function participa(p){
   return (p.confirmados||[]).some(c=>typeof c==='string'?c===state.perfil?.nombre:c.uid?c.uid===state.usuario?.uid:c.nombre===state.perfil?.nombre);
 }
 function etiquetaNotificacion(n){
-  const etiquetas={amistad_solicitud:'Solicitud de amistad',amistad_aceptada:'Nuevo amigo',partido_compartido:'Te compartieron un partido',solicitud:'Solicitud para unirse',aceptado:'Solicitud aceptada',rechazado:'Solicitud rechazada',cancelado:'Partido cancelado',bajada:'Jugador se bajó',calificar:'Calificá a tus compañeros',tag_malo:'Tu reputación',solicitud_vencida:'Solicitud vencida',solicitud_reprogramada:'Solicitud cancelada por cambio de horario',respuesta_horario:'Respuesta al nuevo horario',reprogramado:'Confirmá el nuevo horario'};
+  const etiquetas={mensaje_privado:'Mensaje nuevo',amistad_solicitud:'Solicitud de amistad',amistad_aceptada:'Nuevo amigo',partido_compartido:'Te compartieron un partido',solicitud:'Solicitud para unirse',aceptado:'Solicitud aceptada',rechazado:'Solicitud rechazada',cancelado:'Partido cancelado',bajada:'Jugador se bajó',calificar:'Calificá a tus compañeros',tag_malo:'Tu reputación',solicitud_vencida:'Solicitud vencida',solicitud_reprogramada:'Solicitud cancelada por cambio de horario',respuesta_horario:'Respuesta al nuevo horario',reprogramado:'Confirmá el nuevo horario'};
   const p = state.partidos.find(p=>p.id===n.partidoId);
   if(n.tipo==='reprogramado' && p){
     if(n.versionHorario!==p.versionHorario) return 'Cambio de horario anterior';
@@ -101,7 +101,7 @@ function renderNotificaciones(){
     fila.setAttribute('aria-label',(n.visto?'Leída. ':'Sin leer. ')+String(n.texto||'Aviso'));
     fila.onclick=()=>window.abrirNotificacion(n.id);
     const icon=document.createElement('span');icon.className='notif-symbol';icon.setAttribute('aria-hidden','true');
-    icon.textContent=({amistad_solicitud:'👥',amistad_aceptada:'✓',partido_compartido:'↗',solicitud:'＋',aceptado:'✓',rechazado:'−',cancelado:'×',bajada:'↘',calificar:'☆',tag_malo:'☆',solicitud_vencida:'◷',solicitud_reprogramada:'↻',respuesta_horario:'✓',reprogramado:'↻'})[n.tipo]||'•';
+    icon.textContent=({mensaje_privado:'💬',amistad_solicitud:'👥',amistad_aceptada:'✓',partido_compartido:'↗',solicitud:'＋',aceptado:'✓',rechazado:'−',cancelado:'×',bajada:'↘',calificar:'☆',tag_malo:'☆',solicitud_vencida:'◷',solicitud_reprogramada:'↻',respuesta_horario:'✓',reprogramado:'↻'})[n.tipo]||'•';
     const contenido=document.createElement('span');contenido.className='notif-content';
     const cabecera=document.createElement('span');cabecera.className='notif-card-header';
     const titulo=document.createElement('span');titulo.className='notif-card-title';titulo.textContent=etiquetaNotificacion(n);
@@ -133,6 +133,7 @@ window.abrirNotificacion=async id=>{
       } catch(e){window.mostrarAviso('No se pudo marcar como leída. Podés abrirla igual.');}
     }
     if(state.usuario?.uid!==uid) return;
+    if(n.tipo==='mensaje_privado'){await window.abrirChatAmigo(n.deUid);return;}
     if(n.tipo==='amistad_solicitud'){window.verAmigos('solicitudes');return;}
     if(n.tipo==='amistad_aceptada'){window.verAmigos();return;}
     if(n.tipo==='partido_compartido'){await window.abrirPartidoCompartido(n.partidoId);return;}
