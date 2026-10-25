@@ -1,6 +1,6 @@
-import { getEstadoPartido } from './matches.js';
+import { getEstadoPartido, renderTabPartidos } from './matches.js';
 import { state } from './state.js';
-import { query, collection, db, orderBy, onSnapshot, updateDoc, doc, deleteDoc } from './firebase.js';
+import { query, collection, db, orderBy, onSnapshot, updateDoc, doc, deleteDoc, runTransaction } from './firebase.js';
 
 function iniciarNotificaciones(){
   if(state.notifUnsub) state.notifUnsub();
@@ -23,6 +23,35 @@ function iniciarNotificaciones(){
     window.mostrarAviso('No pudimos cargar las notificaciones. Revisá tu conexión.', 'error');
   });
 }
+const tiposNovedadPartido = new Set(['solicitud','aceptado','rechazado','cancelado','bajada','calificar','solicitud_vencida','solicitud_reprogramada','respuesta_horario','reprogramado','partido_compartido']);
+window.partidoTieneNovedades = id => Boolean(state.usuario && state.notificaciones.some(n=>n.partidoId===id && !n.visto && tiposNovedadPartido.has(n.tipo)));
+const lecturasPartido = new Set();
+window.leerNovedadesPartido = async id => {
+  const uid=state.usuario?.uid, clave=uid+':'+id;
+  if(!uid || lecturasPartido.has(clave)) return;
+  const pendientes=state.notificaciones.filter(n=>n.partidoId===id && !n.visto && tiposNovedadPartido.has(n.tipo));
+  if(!pendientes.length) return;
+  lecturasPartido.add(clave);
+  const version=n=>[n.creadoEn?.seconds,n.creadoEn?.nanoseconds].join(':');
+  try {
+    const resultados=await Promise.allSettled(pendientes.map(async n=>{
+      const leida=await runTransaction(db,async tx=>{
+        const ref=doc(db,'usuarios',uid,'notificaciones',n.id),snap=await tx.get(ref);
+        if(!snap.exists() || version(snap.data())!==version(n)) return false;
+        if(!snap.data().visto) tx.update(ref,{visto:true});
+        return true;
+      });
+      if(leida && state.usuario?.uid===uid){
+        const actual=state.notificaciones.find(item=>item.id===n.id);
+        if(actual && version(actual)===version(n)) actual.visto=true;
+      }
+    }));
+    if(state.usuario?.uid!==uid) return;
+    actualizarBadge();
+    window.actualizarVistaNotificaciones();
+    if(resultados.some(r=>r.status==='rejected')) window.mostrarAviso('No se pudo guardar la lectura de todos los avisos. Volvé a abrir el partido para reintentar.');
+  } finally { lecturasPartido.delete(clave); }
+};
 // Los puntos reflejan avisos sin leer y pendientes reales, sin nuevas consultas.
 window.actualizarPuntosNav = () => {
   const avisos = state.usuario ? state.notificaciones.filter(n=>!n.visto) : [];
@@ -72,6 +101,7 @@ window.actualizarPuntosNav = () => {
 };
 function actualizarBadge(){
   window.actualizarPuntosNav();
+  if(document.getElementById('misPartidos')?.classList.contains('active')) renderTabPartidos();
   const total = state.notificaciones.filter(n=>!n.visto).length;
   const badge = document.getElementById('badgeDot');
   if(!badge)return;
