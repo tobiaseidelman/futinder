@@ -12,6 +12,7 @@ function iniciarPartidos(){
   state.partidosUnsub = onSnapshot(q, (snap) => {
     const abiertoId = state.partidos[state.idx]?.id;
     state.partidos = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+    window.dispatchEvent(new Event('futinder-partidos-actualizados'));
     if(document.getElementById("adminPanel")?.classList.contains("active")) window.renderAdminPanel?.();
     if(document.getElementById("home").classList.contains("active")) render();
     if(document.getElementById("misPartidos").classList.contains("active")) renderTabPartidos();
