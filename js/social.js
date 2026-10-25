@@ -380,15 +380,25 @@ window.abrirOpcionesPersona=async origen=>{
   }catch(e){if(!cerrado){amigo.textContent='No se pudo consultar la amistad';}}
 };
 
-let chatsPrivados=[],stopChats=null,errorChats='',cerrarChatPrivado=null;
-function detenerChatsPrivados(){stopChats?.();stopChats=null;chatsPrivados=[];errorChats='';cerrarChatPrivado?.();}
+let chatsPrivados=[],stopChats=null,stopLecturas=null,lecturasChats=new Map(),errorChats='',cerrarChatPrivado=null;
+const lecturasEnCurso=new Set();
+function chatSinLeer(chat,uid=state.usuario?.uid){return Boolean(chat.recibidos?.[uid]&&lecturasChats.get(chat.id)!==chat.recibidos[uid]);}
+function actualizarContadorChats(){
+ const total=chatsPrivados.filter(c=>chatSinLeer(c)).length,tab=document.getElementById('tabChatsAmigos');
+ if(tab){tab.textContent='Chats';if(total){const b=document.createElement('span');b.className='chat-unread-count';b.textContent=total;tab.append(b);}tab.setAttribute('aria-label','Chats, '+total+' conversaciones sin leer');}
+}
+function refrescarChats(){actualizarContadorChats();if(tabAmigos==='chats'&&document.getElementById('amigos').classList.contains('active'))void renderAmigos();}
+function detenerChatsPrivados(){stopChats?.();stopLecturas?.();stopChats=null;stopLecturas=null;lecturasChats=new Map();chatsPrivados=[];errorChats='';cerrarChatPrivado?.();actualizarContadorChats();}
 function iniciarChatsPrivados(uid){
   errorChats='Cargando conversaciones…';
+  stopLecturas=onSnapshot(collection(db,'usuarios',uid,'lecturasChats'),snap=>{
+    if(state.usuario?.uid!==uid)return;lecturasChats=new Map(snap.docs.map(d=>[d.id,d.data().ultimoId]));refrescarChats();
+  },()=>{if(state.usuario?.uid===uid)window.mostrarAviso('No se pudo sincronizar lo leído. Revisá las reglas de Firebase.','error');});
   stopChats=onSnapshot(query(collection(db,'conversaciones'),where('participantes','array-contains',uid)),snap=>{
     if(state.usuario?.uid!==uid)return;
     chatsPrivados=snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>(b.actualizadoEn?.seconds||0)-(a.actualizadoEn?.seconds||0));
     errorChats='';
-    if(tabAmigos==='chats'&&document.getElementById('amigos').classList.contains('active'))void renderAmigos();
+    refrescarChats();
   },()=>{
     if(state.usuario?.uid!==uid)return;
     errorChats='No se pudieron cargar los chats. Revisá la conexión y que las reglas nuevas estén publicadas en Firebase.';
@@ -398,13 +408,15 @@ function iniciarChatsPrivados(uid){
 async function renderChatsPrivados(cont,uid,version){
   if(errorChats)texto(cont,errorChats);
   const vistos=new Set(),items=[];
-  for(const chat of chatsPrivados){const otro=chat.participantes.find(p=>p!==uid);if(otro){vistos.add(otro);items.push({uid:otro,preview:chat.ultimoTexto});}}
+  const ordenados=[...chatsPrivados].sort((a,b)=>Number(chatSinLeer(b,uid))-Number(chatSinLeer(a,uid))||(b.actualizadoEn?.seconds||0)-(a.actualizadoEn?.seconds||0));
+  for(const chat of ordenados){const otro=chat.participantes.find(p=>p!==uid);if(otro){vistos.add(otro);items.push({uid:otro,preview:chat.ultimoTexto,sinLeer:chatSinLeer(chat,uid)});}}
   for(const amigo of relaciones.filter(r=>r.estado==='amigos'))if(!vistos.has(amigo.uid))items.push({uid:amigo.uid,preview:'Empezá una conversación'});
   if(!items.length&&!errorChats)texto(cont,'Agregá un amigo para chatear y compartir partidos.');
   for(const item of items){
     const datos=await perfilDe(item.uid).catch(()=>({nombre:'Jugador'}));
     if(version!==renderGeneracion||state.usuario?.uid!==uid)return;
-    const fila=boton('',()=>window.abrirChatAmigo(item.uid));fila.className='friend-chat-row';
+    const fila=boton('',()=>window.abrirChatAmigo(item.uid));fila.className='friend-chat-row'+(item.sinLeer?' is-unread':'');
+    if(item.sinLeer){fila.setAttribute('aria-label',(datos.nombre||'Jugador')+', mensajes sin leer');const marca=document.createElement('span');marca.className='chat-unread-dot';marca.setAttribute('aria-hidden','true');fila.append(marca);}
     const avatar=document.createElement('span');avatar.className='social-avatar';avatar.textContent=(datos.nombre||'?')[0];
     if(typeof datos.foto==='string'&&/^(https?:\/\/|data:image\/jpeg;base64,)/.test(datos.foto)){const img=document.createElement('img');img.className='social-avatar';img.src=datos.foto;img.alt='';img.onerror=()=>img.replaceWith(avatar);fila.append(img);}else fila.append(avatar);
     const info=document.createElement('span');info.className='friend-chat-preview';
@@ -418,7 +430,11 @@ function guardarMensajePrivado(tx,uid,otro,contenido){
   const mensaje=doc(collection(db,'conversaciones',idChatPrivado(uid,otro),'mensajes'));
   const ultimoTexto=contenido.tipo==='partido'?'⚽ '+contenido.cancha:contenido.texto;
   tx.set(mensaje,{...contenido,uid,creadoEn:serverTimestamp()});
-  tx.set(ref,{participantes,ultimoTexto,ultimoId:mensaje.id,actualizadoEn:serverTimestamp()});
+  tx.set(ref,{participantes,ultimoTexto,ultimoId:mensaje.id,actualizadoEn:serverTimestamp(),recibidos:{[otro]:mensaje.id}},{merge:true});
+  if(contenido.tipo==='texto')tx.set(doc(db,'usuarios',otro,'notificaciones','chat_'+uid),{
+    tipo:'mensaje_privado',deUid:uid,chatId:idChatPrivado(uid,otro),mensajeId:mensaje.id,
+    texto:(state.perfil?.nombre||'Tu amigo')+' te escribió: '+contenido.texto.slice(0,120),visto:false,creadoEn:serverTimestamp()
+  });
 }
 window.abrirChatAmigo=async otro=>{
   const uid=state.usuario?.uid;if(!uid||!idValido(otro)||otro===uid)return;
@@ -426,9 +442,11 @@ window.abrirChatAmigo=async otro=>{
   const dialogo=document.createElement('dialog');dialogo.className='friend-chat-dialog';dialogo.setAttribute('aria-label','Chat privado');
   const header=document.createElement('header');header.className='friend-chat-header';
   const titulo=document.createElement('strong');titulo.textContent='Chat';
-  let cerrado=false,stop=null,cantidad=100,primera=true;
+  let cerrado=false,stop=null,cantidad=100,primera=true,ultimoRecibido=null;
+  const marcarLeido=()=>{if(!cerrado&&!document.hidden&&ultimoRecibido)void leerChatPrivado(uid,otro,ultimoRecibido);};
+  document.addEventListener('visibilitychange',marcarLeido);
   const ajustar=()=>{dialogo.style.height=(window.visualViewport?.height||window.innerHeight)+'px';dialogo.style.top=(window.visualViewport?.offsetTop||0)+'px';};
-  const cerrar=()=>{if(cerrado)return;cerrado=true;stop?.();window.visualViewport?.removeEventListener('resize',ajustar);window.visualViewport?.removeEventListener('scroll',ajustar);window.removeEventListener('resize',ajustar);dialogo.close();dialogo.remove();cerrarChatPrivado=null;};
+  const cerrar=()=>{if(cerrado)return;cerrado=true;stop?.();document.removeEventListener('visibilitychange',marcarLeido);window.visualViewport?.removeEventListener('resize',ajustar);window.visualViewport?.removeEventListener('scroll',ajustar);window.removeEventListener('resize',ajustar);dialogo.close();dialogo.remove();cerrarChatPrivado=null;};
   cerrarChatPrivado=cerrar;header.append(boton('←',cerrar),titulo);dialogo.append(header);
   const lista=document.createElement('div');lista.className='friend-chat-messages';dialogo.append(lista);
   const estado=document.createElement('p');estado.className='social-help friend-chat-status';estado.setAttribute('role','status');dialogo.append(estado);
@@ -453,6 +471,8 @@ window.abrirChatAmigo=async otro=>{
     stop?.();estado.textContent='Cargando mensajes…';
     stop=onSnapshot(query(collection(db,'conversaciones',idChatPrivado(uid,otro),'mensajes'),orderBy('creadoEn','desc'),limit(cantidad)),snap=>{
       if(cerrado||state.usuario?.uid!==uid)return;
+      ultimoRecibido=snap.docs.find(d=>d.data().uid!==uid)?.id||null;
+      marcarLeido();
       const bajar=primera||lista.scrollHeight-lista.scrollTop-lista.clientHeight<80;
       const anterior=lista.scrollHeight,scroll=lista.scrollTop;lista.replaceChildren();estado.textContent='';
       if(snap.size===cantidad)lista.append(boton('Ver mensajes anteriores',()=>{cantidad+=100;escuchar();}));
@@ -484,3 +504,21 @@ window.abrirChatAmigo=async otro=>{
     },()=>{if(!cerrado)estado.textContent='Publicá las reglas nuevas de Firebase para habilitar los chats.';});
   }
 };
+
+async function leerChatPrivado(uid,otro,ultimoId){
+  const chatId=idChatPrivado(uid,otro),clave=uid+':'+chatId+':'+ultimoId;
+  if(state.usuario?.uid!==uid||lecturasChats.get(chatId)===ultimoId||lecturasEnCurso.has(clave))return;
+  lecturasEnCurso.add(clave);
+  try{
+    await runTransaction(db,async tx=>{
+      sesion(uid);
+      const aviso=doc(db,'usuarios',uid,'notificaciones','chat_'+otro),snap=await tx.get(aviso);
+      const recibo=doc(db,'usuarios',uid,'lecturasChats',chatId),previo=await tx.get(recibo);
+      const chat=await tx.get(doc(db,'conversaciones',chatId));
+      if(!chat.exists()||chat.data().recibidos?.[uid]!==ultimoId)return;
+      if(!previo.exists()||previo.data().ultimoId!==ultimoId)tx.set(recibo,{ultimoId,leidoEn:serverTimestamp()});
+      if(snap.exists()&&snap.data().mensajeId===ultimoId&&!snap.data().visto)tx.update(aviso,{visto:true});
+    });
+  }catch(e){if(state.usuario?.uid===uid)window.mostrarAviso('No se pudo guardar la lectura del chat. Volvé a abrirlo para reintentar.','error');}
+  finally{lecturasEnCurso.delete(clave);}
+}
