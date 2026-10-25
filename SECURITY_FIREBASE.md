@@ -54,3 +54,9 @@ Las reglas de producción no se despliegan al ejecutar las pruebas. Para publica
 Publicar nuevamente el archivo completo `firestore.rules` para habilitar `conversaciones/{id}/mensajes`. Solo sus dos participantes pueden leer, incluido el historial después de quitar una amistad. Para enviar se requiere amistad mutua. Los mensajes son inmutables y se guardan junto al resumen de conversación. Los partidos compartidos nuevos se guardan en el chat; los avisos anteriores siguen en la campana y no se migran automáticamente. Los mensajes de texto se ven dentro de Amigos (no son notificaciones push).
 
 Las 25 pruebas de `security/firestore.rules.test.mjs` pasaron en el emulador, incluidas amistad mutua, privacidad, autoría, inmutabilidad y partidos compartidos válidos. No se modificaron las reglas de producción desde estas pruebas.
+
+
+## Avisos y conversaciones sin leer
+Volver a publicar las reglas completas para habilitar `usuarios/{uid}/lecturasChats` y los avisos `mensaje_privado`. Las lecturas se guardan por cuenta. Cada mensaje nuevo actualiza el aviso de esa conversación en la campana; no envía notificaciones push al teléfono. El contador de Chats suma conversaciones sin leer, no mensajes individuales. Los mensajes históricos previos a esta versión no generan avisos retroactivos.
+
+Las 26 pruebas de reglas pasaron en el emulador, incluyendo privacidad de los recibos de lectura, autoría del aviso, destinatario y preservación de mensajes pendientes al responder.
