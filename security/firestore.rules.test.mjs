@@ -225,8 +225,8 @@ async function seedChatFriends(){
   await seed({'usuarios/owner/amistades/player':{estado:'amigos',solicitanteUid:'owner'},
     'usuarios/player/amistades/owner':{estado:'amigos',solicitanteUid:'owner'}});
 }
-function privateBatch(uid='owner',id='first',extra={}){
-  const db=user(uid),b=writeBatch(db),message={uid,tipo:'texto',texto:'Hola',partidoId:'',cancha:'',fecha:'',hora:'',creadoEn:serverTimestamp(),...extra};
+function privateBatch(uid='owner',id='first',extra={},database=null){
+  const db=database||user(uid),b=writeBatch(db),message={uid,tipo:'texto',texto:'Hola',partidoId:'',cancha:'',fecha:'',hora:'',creadoEn:serverTimestamp(),...extra};
   b.set(ref(db,'conversaciones/owner__player/mensajes/'+id),message);
   b.set(ref(db,'conversaciones/owner__player'),{participantes:['owner','player'],ultimoId:id,ultimoTexto:message.tipo==='partido'?'⚽ '+message.cancha:message.texto,actualizadoEn:serverTimestamp()});
   return b;
@@ -261,4 +261,23 @@ test('removing friend preserves history but prevents new messages',async()=>{
   await env.withSecurityRulesDisabled(async c=>{await deleteDoc(ref(c.firestore(),'usuarios/owner/amistades/player'));});
   await assertSucceeds(getDocs(collection(user('owner'),'conversaciones/owner__player/mensajes')));
   await assertFails(privateBatch('player','later').commit());
+});
+
+test('unread chat metadata and notice bind new incoming message and recipient',async()=>{
+  await seedChatFriends();
+  const db=user('owner'),b=privateBatch('owner','unread',{},db);
+  b.set(ref(db,'conversaciones/owner__player'),{participantes:['owner','player'],ultimoTexto:'Hola',ultimoId:'unread',actualizadoEn:serverTimestamp(),recibidos:{player:'unread'}});
+  b.set(ref(db,'usuarios/player/notificaciones/chat_owner'),{tipo:'mensaje_privado',deUid:'owner',chatId:'owner__player',mensajeId:'unread',texto:'Mensaje',visto:false,creadoEn:serverTimestamp()});
+  await assertSucceeds(b.commit());
+  await assertSucceeds(setDoc(ref(user('player'),'usuarios/player/lecturasChats/owner__player'),{ultimoId:'unread',leidoEn:serverTimestamp()}));
+  await assertFails(getDoc(ref(user('stranger'),'usuarios/player/lecturasChats/owner__player')));
+  await assertFails(setDoc(ref(user('owner'),'usuarios/player/lecturasChats/owner__player'),{ultimoId:'unread',leidoEn:serverTimestamp()}));
+  await assertFails(setDoc(ref(user('player'),'usuarios/player/lecturasChats/owner__player'),{ultimoId:'fake',leidoEn:serverTimestamp()}));
+  const playerDb=user('player'),reply=privateBatch('player','reply',{},playerDb);
+  reply.set(ref(playerDb,'conversaciones/owner__player'),{participantes:['owner','player'],ultimoTexto:'Hola',ultimoId:'reply',actualizadoEn:serverTimestamp(),recibidos:{player:'unread',owner:'reply'}});
+  await assertSucceeds(reply.commit());
+  const erase=privateBatch('owner','erase');await assertFails(erase.commit());
+  const forge=privateBatch('owner','forge',{},db);
+  forge.set(ref(db,'conversaciones/owner__player'),{participantes:['owner','player'],ultimoTexto:'Hola',ultimoId:'forge',actualizadoEn:serverTimestamp(),recibidos:{owner:'fake',player:'forge'}});
+  await assertFails(forge.commit());
 });
