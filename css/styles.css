@@ -543,3 +543,42 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
   background:var(--red,#ff4d4d); border:2px solid var(--surface,#141414);
   box-sizing:content-box; pointer-events:none;
 }
+
+/* Historial: detalle del partido finalizado, compartido por creador y jugadores. */
+#infoPartidoContent.finished-content{padding:0 16px calc(24px + env(safe-area-inset-bottom))!important}
+.finished-hero{position:relative;height:190px;overflow:hidden;border-radius:20px;background:#171717}
+.finished-hero>img{width:100%;height:100%;object-fit:cover}
+.finished-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 10%,rgba(0,0,0,.35) 40%,#111 100%)}
+.finished-hero-text{position:absolute;z-index:1;bottom:18px;left:18px;right:18px}
+.finished-hero-text>span{font-size:9px;letter-spacing:1.7px;color:#b5e5a9;font-weight:700}
+.finished-hero h2{font-family:'Bebas Neue',sans-serif;font-size:32px;line-height:1.1;margin:6px 0;color:#fff;overflow-wrap:anywhere}
+.finished-hero p{margin:6px 0 0;font-size:12px;color:#ccc}
+.finished-body{padding:0 4px}
+.finished-summary{display:grid;grid-template-columns:1fr 1fr;padding:20px 0;gap:16px;border-bottom:1px solid #242424}
+.finished-summary>div:last-child{text-align:right}
+.finished-summary span{display:block;color:#999;font-size:11px;margin-bottom:7px}
+.finished-summary strong{font-size:20px;letter-spacing:-.5px}
+.finished-summary p{font-size:12px;color:#aaa;margin:5px 0 0}
+.finished-location{display:flex;align-items:center;gap:10px;color:#aaa;font-size:12px;line-height:1.5;padding:14px 0}
+.finished-location>span:first-child{color:var(--green);font-size:22px}
+.finished-section{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:18px}
+.finished-section h3{font-size:17px;letter-spacing:-.3px;margin:0}
+.finished-section>span{font-size:11px;color:#999;white-space:nowrap}
+.finished-hint{font-size:12px;color:#999;line-height:1.5;margin:7px 0 16px}
+.finished-roster{border:1px solid #272727;border-radius:16px;background:#131313;padding:0 12px}
+.finished-player{display:grid;grid-template-columns:40px minmax(0,1fr);gap:10px;align-items:center;padding:14px 0;border-bottom:1px solid #272727}
+.finished-player:last-child{border-bottom:0}
+.finished-player .mini-avatar{width:40px;height:40px;flex-shrink:0}
+.finished-person strong{display:block;font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+.finished-person>span{display:block;font-size:11px;color:#999;margin-top:3px}
+.finished-player-actions{grid-column:2;display:flex;justify-content:flex-end;align-items:center;gap:6px}
+.finished-player-actions:empty{display:none}
+.finished-rate{background:#242424;border:1px solid #383838;border-radius:10px;padding:10px 12px;min-height:40px;color:#eee;font:600 12px 'DM Sans',sans-serif;white-space:nowrap;cursor:pointer}
+.finished-rate:focus-visible,.finished-chat:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.finished-rated{font-size:12px;color:var(--green)}
+.finished-group{margin:12px 0 20px;color:#aaa}
+.finished-group:empty{display:none}
+.finished-chat{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;min-height:48px;padding:14px;border:1px solid #343434;border-radius:12px;background:#191919;color:#eee;font:500 13px 'DM Sans',sans-serif;cursor:pointer;margin-top:20px}
+.finished-chat span{color:var(--green)}
+.finished-report{display:block;margin:14px auto 0!important;color:#888!important;font-size:12px!important}
+@media(min-width:390px){.finished-player{grid-template-columns:40px minmax(0,1fr) auto}.finished-player-actions{grid-column:3;grid-row:1}}
