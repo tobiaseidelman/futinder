@@ -373,7 +373,7 @@ function getConfirmadoItemHTML(c, p, estado){
   if(estado === 'finalizado'){
     const opciones = !esYo && jugadorUid ? (window.botonOpcionesPersonaHTML?.(jugadorUid,nombre)||'') : '';
     const calificar = !esYo && !pendiente && !esperaReconfirmacion(p)
-      ? (yaCalifique ? '<span class="finished-rated">✓ Calificado</span>' : `<button class="finished-rate" data-nombre="${escaparJugador(nombre)}" data-partido="${escaparJugador(p.id)}" data-creador="${escaparJugador(p.creadorUid)}" onclick="abrirModalRating(this.dataset.nombre,this.dataset.partido,this.dataset.creador)">★ Calificar</button>`)
+      ? (yaCalifique ? '<span class="finished-rated">✓ Calificado</span>' : `<button class="finished-rate" data-nombre="${escaparJugador(nombre)}" data-partido="${escaparJugador(p.id)}" data-creador="${escaparJugador(p.creadorUid)}" onclick="abrirModalRating(this.dataset.nombre,this.dataset.partido,this.dataset.creador)"><span style="color:#ffd54f" aria-hidden="true">★</span> Calificar</button>`)
       : '';
     return `<div class="finished-player">
       ${avatarJugadorHTML(jugadorUid,nombre)}
