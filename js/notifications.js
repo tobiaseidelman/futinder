@@ -33,6 +33,35 @@ window.actualizarPuntosNav = () => {
     partidos: avisos.some(n=>partidos.has(n.tipo)),
     perfil: avisos.some(n=>n.tipo==='tag_malo')
   };
+  // Clasificar por el estado actual: una aceptación antigua puede pertenecer
+  // ahora a Finalizados. Los avisos de solicitudes propias van a Pendientes.
+  const secciones = {creados:false,pendientes:false,confirmados:false,finalizados:false};
+  for(const aviso of avisos){
+    if(!partidos.has(aviso.tipo)) continue;
+    const partido=state.partidos.find(p=>p.id===aviso.partidoId);
+    let destino='confirmados';
+    if(aviso.tipo==='calificar' || (partido && getEstadoPartido(partido)==='finalizado')) destino='finalizados';
+    else if(partido && (partido.creadorUid===state.usuario?.uid || (!partido.creadorUid && partido.creador===state.perfil?.nombre))) destino='creados';
+    else if(['rechazado','solicitud_vencida','solicitud_reprogramada','partido_compartido'].includes(aviso.tipo)) destino='pendientes';
+    secciones[destino]=true;
+  }
+  const pestanas = [
+    ['tab-creados','Creados',secciones.creados],
+    ['tab-pendientes','Pendientes',secciones.pendientes],
+    ['tab-confirmados','Confirmados',secciones.confirmados],
+    ['tab-finalizados','Finalizados',secciones.finalizados],
+    ['tabChatsAmigos','Chats',Boolean(social.chats)],
+    ['tabMisAmigos','Mis amigos',avisos.some(n=>n.tipo==='amistad_aceptada')],
+    ['tabSolicitudesAmigos','Solicitudes',Boolean(social.solicitudes)]
+  ];
+  for(const [id,nombre,activo] of pestanas){
+    const boton=document.getElementById(id);
+    if(!boton) continue;
+    boton.classList.toggle('section-has-news',activo);
+    boton.title=activo ? nombre+': novedades pendientes' : nombre;
+    // Mantener el contador accesible de conversaciones sin leer.
+    if(id!=='tabChatsAmigos') boton.setAttribute('aria-label',nombre+(activo?', novedades pendientes':''));
+  }
   document.querySelectorAll('[data-nav-alert]').forEach(boton=>{
     const activo=Boolean(grupos[boton.dataset.navAlert]);
     boton.classList.toggle('has-news',activo);
@@ -132,7 +161,7 @@ function renderNotificaciones(){
     fila.append(icon,contenido);lista.append(fila);
   }
 }
-window.actualizarVistaNotificaciones=()=>{if(document.getElementById('notificaciones')?.classList.contains('active'))renderNotificaciones();};
+window.actualizarVistaNotificaciones=()=>{window.actualizarPuntosNav();if(document.getElementById('notificaciones')?.classList.contains('active'))renderNotificaciones();};
 window.verNotificaciones=()=>{renderNotificaciones();cambiarPantalla('notificaciones');};
 
 const abriendo=new Set();
