@@ -1,3 +1,4 @@
+import { avatarMensaje, horaMensaje } from './chat.js';
 import { state } from './state.js';
 import { getEstadoPartido } from './matches.js';
 import { db, doc, collection, query, where, orderBy, onSnapshot, getDoc, runTransaction, serverTimestamp } from './firebase.js';
@@ -416,7 +417,7 @@ async function renderChatsPrivados(cont,uid,version){
   if(errorChats)texto(cont,errorChats);
   const vistos=new Set(),items=[];
   const ordenados=[...chatsPrivados].sort((a,b)=>Number(chatSinLeer(b,uid))-Number(chatSinLeer(a,uid))||(b.actualizadoEn?.seconds||0)-(a.actualizadoEn?.seconds||0));
-  for(const chat of ordenados){const otro=chat.participantes.find(p=>p!==uid);if(otro){vistos.add(otro);items.push({uid:otro,preview:chat.ultimoTexto,sinLeer:chatSinLeer(chat,uid)});}}
+  for(const chat of ordenados){const otro=chat.participantes.find(p=>p!==uid);if(otro){vistos.add(otro);items.push({uid:otro,preview:chat.ultimoTexto,chat,sinLeer:chatSinLeer(chat,uid)});}}
   for(const amigo of relaciones.filter(r=>r.estado==='amigos'))if(!vistos.has(amigo.uid))items.push({uid:amigo.uid,preview:'Empezá una conversación'});
   if(!items.length&&!errorChats)texto(cont,'Agregá un amigo para chatear y compartir partidos.');
   for(const item of items){
@@ -428,7 +429,19 @@ async function renderChatsPrivados(cont,uid,version){
     if(typeof datos.foto==='string'&&/^(https?:\/\/|data:image\/jpeg;base64,)/.test(datos.foto)){const img=document.createElement('img');img.className='social-avatar';img.src=datos.foto;img.alt='';img.onerror=()=>img.replaceWith(avatar);fila.append(img);}else fila.append(avatar);
     const info=document.createElement('span');info.className='friend-chat-preview';
     const nombre=document.createElement('strong');nombre.textContent=datos.nombre||'Jugador';info.append(nombre);
-    texto(info,item.preview||'Conversación');fila.append(info);cont.append(fila);
+    const preview=texto(info,item.preview||'Conversación');fila.append(info);cont.append(fila);
+    if(item.chat){
+      const mostrarAutor=autor=>{preview.textContent=(autor===uid?'Vos':autor===item.uid?(datos.nombre||'Jugador'): 'Mensaje')+': '+(item.preview||'Partido compartido');};
+      if(item.chat.recibidos?.[item.uid]===item.chat.ultimoId)mostrarAutor(uid);
+      else if(item.chat.recibidos?.[uid]===item.chat.ultimoId)mostrarAutor(item.uid);
+      else if(item.chat.ultimoId){
+        // Conversaciones anteriores a los recibos de lectura: consultar solo
+        // el último mensaje, sin agregar campos ni cambiar las reglas.
+        void getDoc(doc(db,'conversaciones',item.chat.id,'mensajes',item.chat.ultimoId)).then(s=>{
+          if(s.exists()&&version===renderGeneracion&&state.usuario?.uid===uid)mostrarAutor(s.data().uid);
+        }).catch(()=>{});
+      }
+    }
   }
 }
 function idChatPrivado(a,b){return [a,b].sort().join('__');}
@@ -490,8 +503,10 @@ window.abrirChatAmigo=async otro=>{
           texto(bubble,fechaPartido(m.fecha)+' · '+m.hora);
           bubble.append(boton('Ver partido',()=>{cerrar();window.abrirPartidoCompartido(m.partidoId);},true));
         }else{const contenido=document.createElement('p');contenido.textContent=m.texto;bubble.append(contenido);}
-        const hora=m.creadoEn?.toDate?.();if(hora){const time=document.createElement('small');time.textContent=hora.toLocaleString('es-UY',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});bubble.append(time);}
-        lista.append(bubble);
+        bubble.append(horaMensaje(m.creadoEn));
+        const fila=document.createElement('div');fila.className='message-row'+(m.uid===uid?' own':'');
+        fila.append(avatarMensaje(m.uid,m.uid===uid?state.perfil?.nombre:titulo.textContent),bubble);
+        lista.append(fila);
       }
       if(!snap.size)texto(lista,'Todavía no hay mensajes. ¡Saludá a tu amigo!');
       lista.scrollTop=bajar?lista.scrollHeight:scroll+Math.max(0,lista.scrollHeight-anterior);primera=false;
