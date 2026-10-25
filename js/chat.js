@@ -1,6 +1,37 @@
 import { state } from './state.js';
 import { nombreDeConfirmado } from './matches.js';
-import { query, collection, db, orderBy, onSnapshot, addDoc, serverTimestamp } from './firebase.js';
+import { query, collection, db, orderBy, onSnapshot, addDoc, serverTimestamp, getDoc, doc } from './firebase.js';
+
+const fotosChat = new Map();
+let sesionFotos = null;
+export function avatarMensaje(uid,nombre){
+  if(sesionFotos!==state.usuario?.uid){fotosChat.clear();sesionFotos=state.usuario?.uid;}
+  const avatar=document.createElement('span');avatar.className='message-avatar';
+  avatar.textContent=(nombre||'?')[0].toUpperCase();
+  avatar.setAttribute('aria-label','Foto de '+(nombre||'Jugador'));
+  const aplicar=datos=>{
+    if(typeof datos?.foto!=='string'||!/^(https?:\/\/|data:image\/jpeg;base64,)/.test(datos.foto))return;
+    const img=document.createElement('img');img.alt='Foto de '+(datos.nombre||nombre||'Jugador');
+    img.onerror=()=>{avatar.textContent=(nombre||'?')[0].toUpperCase();};
+    window.prepararFotoAmpliable?.(img);img.src=datos.foto;avatar.replaceChildren(img);
+  };
+  if(uid===state.usuario?.uid)aplicar(state.perfil);
+  else if(uid){
+    if(!fotosChat.has(uid))fotosChat.set(uid,getDoc(doc(db,'usuarios',uid)).then(s=>s.exists()?s.data():null).catch(()=>null));
+    fotosChat.get(uid).then(aplicar);
+  }
+  return avatar;
+}
+export function horaMensaje(timestamp){
+  const time=document.createElement('time');time.className='message-time';
+  const fecha=timestamp?.toDate?.();
+  if(fecha&&!Number.isNaN(fecha.getTime())){
+    time.dateTime=fecha.toISOString();
+    time.textContent=fecha.toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit',hour12:false});
+    time.title=fecha.toLocaleString('es-UY');
+  }else time.textContent='Enviando…';
+  return time;
+}
 
 let partidoChatId = null;
 let enviandoMensaje = false;
@@ -80,7 +111,11 @@ window.abrirChatIdx = i => {
       const texto = document.createElement('span');
       texto.textContent = m.texto || '';
       mensaje.append(texto);
-      fragmento.append(mensaje);
+      mensaje.append(horaMensaje(m.hora));
+      const fila=document.createElement('div');fila.className='message-row'+(propio?' own':'');
+      const autorUid=m.uid || (p.confirmados||[]).find(c=>typeof c==='object'&&c.nombre===m.nombre)?.uid || (m.nombre===p.creador?p.creadorUid:null);
+      fila.append(avatarMensaje(autorUid,m.nombre),mensaje);
+      fragmento.append(fila);
     });
     mensajes.replaceChildren(fragmento);
     if(!snap.docs.length){
