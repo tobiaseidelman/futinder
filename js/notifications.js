@@ -1,4 +1,4 @@
-import { getEstadoPartido, renderTabPartidos } from './matches.js';
+import { getEstadoPartido, renderTabPartidos, tieneCalificacionesPendientes } from './matches.js';
 import { state } from './state.js';
 import { query, collection, db, orderBy, onSnapshot, updateDoc, doc, deleteDoc, runTransaction } from './firebase.js';
 
@@ -24,7 +24,11 @@ function iniciarNotificaciones(){
   });
 }
 const tiposNovedadPartido = new Set(['solicitud','aceptado','rechazado','cancelado','bajada','calificar','solicitud_vencida','solicitud_reprogramada','respuesta_horario','reprogramado','partido_compartido']);
-window.partidoTieneNovedades = id => Boolean(state.usuario && state.notificaciones.some(n=>n.partidoId===id && !n.visto && tiposNovedadPartido.has(n.tipo)));
+function novedadPartidoRelevante(n){
+  const p=state.partidos.find(p=>p.id===n.partidoId);
+  return !p || getEstadoPartido(p)!=='finalizado' || tieneCalificacionesPendientes(p);
+}
+window.partidoTieneNovedades = id => Boolean(state.usuario && state.notificaciones.some(n=>n.partidoId===id && !n.visto && tiposNovedadPartido.has(n.tipo) && novedadPartidoRelevante(n)));
 const lecturasPartido = new Set();
 window.leerNovedadesPartido = async id => {
   const uid=state.usuario?.uid, clave=uid+':'+id;
@@ -54,7 +58,7 @@ window.leerNovedadesPartido = async id => {
 };
 // Los puntos reflejan avisos sin leer y pendientes reales, sin nuevas consultas.
 window.actualizarPuntosNav = () => {
-  const avisos = state.usuario ? state.notificaciones.filter(n=>!n.visto) : [];
+  const avisos = state.usuario ? state.notificaciones.filter(n=>!n.visto && (!tiposNovedadPartido.has(n.tipo) || novedadPartidoRelevante(n))) : [];
   const social = state.usuario ? window.novedadesSocial?.() || {} : {};
   const partidos = new Set(['solicitud','aceptado','rechazado','cancelado','bajada','calificar','solicitud_vencida','solicitud_reprogramada','respuesta_horario','reprogramado','partido_compartido']);
   const grupos = {
