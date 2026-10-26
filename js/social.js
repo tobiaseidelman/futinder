@@ -131,11 +131,11 @@ window.iniciarSocial=()=>{
     if(socialUid===uid) window.mostrarAviso('No pudimos cargar Amigos. Revisá la conexión y los permisos de Firebase.','error');
   });
 };
-window.verAmigos=(tab='chats')=>{
+window.verAmigos=(tab=tabAmigos)=>{
   if(!state.usuario||!state.perfil) return;
   if(socialUid!==state.usuario.uid) window.iniciarSocial();
   tabAmigos=['chats','amigos','solicitudes'].includes(tab)?tab:'chats';
-  window.cambiarPantalla('amigos');void renderAmigos();
+  window.cambiarPantalla('amigos');return renderAmigos();
 };
 window.buscarAmigos=async()=>{
   const nombre=document.getElementById('buscarAmigoInput').value.trim(),uid=state.usuario?.uid;
@@ -308,7 +308,7 @@ window.procesarEnlaceCompartido=async()=>{
   const id=enlacePendiente;enlacePendiente=null;abriendoEnlace=true;
   try{
     await window.abrirPartidoCompartido(id);
-    const url=new URL(window.location.href);url.searchParams.delete('partido');window.history.replaceState(null,'',url);
+    const url=new URL(window.location.href);url.searchParams.delete('partido');window.history.replaceState(window.history.state,'',url);
   }finally{abriendoEnlace=false;}
 };
 
@@ -462,7 +462,7 @@ window.abrirChatAmigo=async otro=>{
   const dialogo=document.createElement('dialog');dialogo.className='friend-chat-dialog';dialogo.setAttribute('aria-label','Chat privado');
   const header=document.createElement('header');header.className='friend-chat-header';
   const titulo=document.createElement('strong');titulo.textContent='Chat';
-  let cerrado=false,stop=null,cantidad=100,primera=true,ultimoRecibido=null;
+  let cerrado=false,stop=null,cantidad=100,primera=true,ultimoRecibido=null,salirNavegacion=null;
   const tarjetasPartidos=new Map();
   const refrescarTarjetas=()=>{if(!cerrado)for(const actualizar of tarjetasPartidos.values())actualizar();};
   const relojTarjetas=setInterval(refrescarTarjetas,15000);
@@ -470,7 +470,7 @@ window.abrirChatAmigo=async otro=>{
   const marcarLeido=()=>{if(!cerrado&&!document.hidden&&ultimoRecibido)void leerChatPrivado(uid,otro,ultimoRecibido);};
   document.addEventListener('visibilitychange',marcarLeido);
   const ajustar=()=>{dialogo.style.height=(window.visualViewport?.height||window.innerHeight)+'px';dialogo.style.top=(window.visualViewport?.offsetTop||0)+'px';};
-  const cerrar=()=>{if(cerrado)return;cerrado=true;stop?.();clearInterval(relojTarjetas);window.removeEventListener('futinder-partidos-actualizados',refrescarTarjetas);tarjetasPartidos.clear();document.removeEventListener('visibilitychange',marcarLeido);window.visualViewport?.removeEventListener('resize',ajustar);window.visualViewport?.removeEventListener('scroll',ajustar);window.removeEventListener('resize',ajustar);dialogo.close();dialogo.remove();cerrarChatPrivado=null;};
+  const cerrar=()=>{if(cerrado)return;cerrado=true;salirNavegacion?.();stop?.();clearInterval(relojTarjetas);window.removeEventListener('futinder-partidos-actualizados',refrescarTarjetas);tarjetasPartidos.clear();document.removeEventListener('visibilitychange',marcarLeido);window.visualViewport?.removeEventListener('resize',ajustar);window.visualViewport?.removeEventListener('scroll',ajustar);window.removeEventListener('resize',ajustar);dialogo.close();dialogo.remove();cerrarChatPrivado=null;};
   cerrarChatPrivado=cerrar;header.append(boton('←',cerrar),titulo);dialogo.append(header);
   const lista=document.createElement('div');lista.className='friend-chat-messages';dialogo.append(lista);
   const estado=document.createElement('p');estado.className='social-help friend-chat-status';estado.setAttribute('role','status');dialogo.append(estado);
@@ -537,7 +537,7 @@ window.abrirChatAmigo=async otro=>{
       lista.scrollTop=bajar?lista.scrollHeight:scroll+Math.max(0,lista.scrollHeight-anterior);primera=false;
     },()=>{if(!cerrado)estado.textContent='No se pudo leer el chat. Revisá la conexión y publicá las reglas nuevas de Firebase.';});
   };
-  document.body.append(dialogo);dialogo.showModal();ajustar();window.visualViewport?.addEventListener('resize',ajustar);window.visualViewport?.addEventListener('scroll',ajustar);window.addEventListener('resize',ajustar);dialogo.addEventListener('cancel',e=>{e.preventDefault();cerrar();});
+  document.body.append(dialogo);dialogo.showModal();salirNavegacion=window.registrarDialogoNavegacion?.(cerrar);ajustar();window.visualViewport?.addEventListener('resize',ajustar);window.visualViewport?.addEventListener('scroll',ajustar);window.addEventListener('resize',ajustar);dialogo.addEventListener('cancel',e=>{e.preventDefault();cerrar();});
   perfilDe(otro).then(p=>{if(!cerrado)titulo.textContent=p.nombre||'Jugador';}).catch(()=>{});
   // Crear el encabezado al primer mensaje; sin conversación aún, no consultar su subcolección.
   const existente=await getDoc(doc(db,'conversaciones',idChatPrivado(uid,otro))).catch(()=>null);
