@@ -622,3 +622,6 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
 .swipe-tab-indicator{position:absolute;bottom:1px;left:0;height:3px;background:var(--green);border-radius:3px;pointer-events:none;transition:transform .18s ease-out,width .18s ease-out}
 .swipe-tab-panel{touch-action:pan-y;min-height:140px}
 @media(prefers-reduced-motion:reduce){.swipe-tab-indicator{transition:none}}
+
+#amigos .social-body.swipe-tab-panel{flex:1;min-height:0;touch-action:pan-y}
+.swipe-tab-panel img{-webkit-user-drag:none}
