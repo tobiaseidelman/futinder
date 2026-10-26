@@ -1,12 +1,91 @@
+import { state } from './state.js';
 
-// ---- NAV ----
+// Historial de esta sesión: cada entrada guarda pantalla, partido y desplazamiento.
+const navSession = Date.now().toString(36);
+const navEntries = [];
+let navIndex = -1;
+let restoringNavigation = false;
+let dialogBack = null;
+window.restaurandoNavegacion=()=>restoringNavigation;
+function saveNavigation(){
+  const entry=navEntries[navIndex],screen=entry&&document.getElementById(entry.screen);
+  if(!screen?.classList.contains('active'))return;
+  entry.scroll=[screen,...screen.querySelectorAll('*')].map((el,index)=>({index,id:el.id,top:el.scrollTop,left:el.scrollLeft})).filter(p=>p.top||p.left);
+  entry.matchTab=document.querySelector('#misPartidos .tab-btn.active')?.id?.replace('tab-','');
+  entry.friendTab=document.querySelector('#amigos [aria-pressed="true"]')?.id;
+}
+document.addEventListener('scroll',saveNavigation,true);
+function restoreScroll(entry){
+  const screen=document.getElementById(entry.screen);
+  if(!screen)return;
+  const nodes=[screen,...screen.querySelectorAll('*')];
+  for(const p of entry.scroll||[]){
+    const el=p.id?document.getElementById(p.id):nodes[p.index];
+    if(el){el.scrollTop=p.top;el.scrollLeft=p.left;}
+  }
+}
 window.cambiarPantalla = (id) => {
+  const target=document.getElementById(id);
+  if(!target)return;
+  saveNavigation();
   if(id !== 'adminPanel') window.detenerReportesAdmin?.();
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  target.classList.add('active');
+  if(!restoringNavigation){
+    const reset=['login','crearPerfil'].includes(id)||navIndex<0||['login','crearPerfil'].includes(navEntries[navIndex]?.screen);
+    if(reset){navEntries.length=0;navIndex=-1;}
+    if(reset||navEntries[navIndex]?.screen!==id){
+      navEntries.splice(navIndex+1);
+      navEntries.push({screen:id,partidoId:state.partidos[state.idx]?.id,scroll:[]});navIndex++;
+      const value={...(history.state||{}),futNav:navSession,index:navIndex};
+      if(reset)history.replaceState(value,'');else history.pushState(value,'');
+    }
+  }
   window.actualizarPuntosNav?.();
 };
-window.irHome = () => { window.limpiarTarjetaPendiente?.(); render(); cambiarPantalla("home"); };
+window.volverNavegacion = () => {
+  if(history.state?.futNav===navSession&&(navIndex>0||dialogBack)){history.back();return true;}
+  return false;
+};
+// Las flechas conservan su destino de respaldo si no hay historial interno.
+document.addEventListener('click',e=>{
+  if(e.target.closest?.('.back-btn')&&window.volverNavegacion()){e.preventDefault();e.stopImmediatePropagation();}
+},true);
+window.registrarDialogoNavegacion = cerrar => {
+  saveNavigation();
+  const token={cerrar};
+  dialogBack=token;
+  history.pushState({...(history.state||{}),futNav:navSession,index:navIndex,dialog:true},'');
+  return ()=>{
+    if(dialogBack!==token)return;
+    dialogBack=null;
+    // Reemplazar la entrada permite cerrar y abrir un partido sin una carrera con popstate.
+    history.replaceState({...(history.state||{}),dialog:false},'');
+  };
+};
+window.addEventListener('popstate',async e=>{
+  const habiaDialogo=Boolean(dialogBack);
+  if(dialogBack){const d=dialogBack;dialogBack=null;d.cerrar();}
+  if(e.state?.futNav!==navSession)return;
+  if(!habiaDialogo && e.state.index===navIndex && navIndex>0){history.back();return;}
+  if(!state.usuario){window.cambiarPantalla('login');return;}
+  const entry=navEntries[e.state.index];if(!entry)return;
+  const scrollGuardado={...entry,scroll:[...(entry.scroll||[])]};
+  saveNavigation();navIndex=e.state.index;restoringNavigation=true;
+  try{
+    const i=state.partidos.findIndex(p=>p.id===entry.partidoId);
+    if(entry.screen==='chat'&&i>=0)window.abrirChatIdx(i);
+    else if(entry.screen==='creador'&&i>=0)window.verDetalle(i);
+    else if(entry.screen==='infoPartido'&&i>=0)window.verInfoPartido(i);
+    else{
+      window.cambiarPantalla(entry.screen);
+      if(entry.screen==='misPartidos'&&entry.matchTab)window.switchTab(entry.matchTab);
+      if(entry.screen==='amigos')await window.verAmigos(({tabChatsAmigos:'chats',tabMisAmigos:'amigos',tabSolicitudesAmigos:'solicitudes'})[entry.friendTab]);
+    }
+    requestAnimationFrame(()=>requestAnimationFrame(()=>restoreScroll(scrollGuardado)));
+  }finally{restoringNavigation=false;}
+});
+window.irHome = () => { window.limpiarTarjetaPendiente?.(); render(); cambiarPantalla('home'); };
 
 // Avisos breves dentro de la app, sin bloquear la navegación.
 let avisoTimer;
