@@ -208,7 +208,7 @@ export function confirmarAccion({titulo, mensaje, aceptar}){
 
  
 // Gestos locales: Inicio conserva el swipe de sus tarjetas.
-function instalarPestanasDeslizables({screenId,barSelector,buttonIds,keys,panelIds,select}){
+function instalarPestanasDeslizables({screenId,barSelector,buttonIds,keys,panelIds,select,surfaceSelector}){
   const screen=document.getElementById(screenId),bar=screen?.querySelector(barSelector);
   const buttons=buttonIds.map(id=>document.getElementById(id));
   const panels=panelIds.map(id=>document.getElementById(id)).filter(Boolean);
@@ -237,20 +237,26 @@ function instalarPestanasDeslizables({screenId,barSelector,buttonIds,keys,panelI
   new MutationObserver(position).observe(screen,{attributes:true,attributeFilter:['class']});
   new ResizeObserver(position).observe(bar);
   bar.addEventListener('scroll',position,{passive:true});
-  panels.forEach(panel=>{
+  const surfaces=surfaceSelector?[screen.querySelector(surfaceSelector)].filter(Boolean):panels;
+  surfaces.forEach(panel=>{
     panel.classList.add('swipe-tab-panel');
     panel.addEventListener('pointerdown',e=>{
-      if(e.pointerType==='mouse'||!e.isPrimary||e.clientX<24||e.clientX>window.innerWidth-24||e.target.closest('button,input,textarea,select,a,dialog'))return;
+      gesture=null;
+      const control=e.target.closest('button,input,textarea,select,a,dialog');
+      const fila=control?.matches('.friend-chat-row,.social-person');
+      if(!e.isPrimary||(e.pointerType==='mouse'&&e.button!==0)||e.clientX<24||e.clientX>window.innerWidth-24||(control&&!fila)||bar.contains(e.target))return;
       gesture={id:e.pointerId,x:e.clientX,y:e.clientY,time:performance.now(),index:active()};
     },{passive:true});
     panel.addEventListener('pointermove',e=>{
       if(!gesture||e.pointerId!==gesture.id)return;
       const dx=e.clientX-gesture.x,dy=e.clientY-gesture.y;
       if(Math.abs(dy)>18&&Math.abs(dy)>Math.abs(dx)){gesture=null;return;}
-    },{passive:true});
+      if(Math.abs(dx)>18&&Math.abs(dx)>Math.abs(dy)*1.5){panel.setPointerCapture?.(e.pointerId);if(e.pointerType==='mouse')e.preventDefault();}
+    },{passive:false});
     panel.addEventListener('pointercancel',()=>{gesture=null;});
     panel.addEventListener('pointerup',e=>{
       const g=gesture;gesture=null;if(!g||g.id!==e.pointerId)return;
+      if(panel.hasPointerCapture?.(e.pointerId))panel.releasePointerCapture(e.pointerId);
       const dx=e.clientX-g.x,dy=e.clientY-g.y;
       if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.5||performance.now()-g.time>1000)return;
       const next=g.index+(dx<0?1:-1);
@@ -272,6 +278,6 @@ instalarPestanasDeslizables({
 instalarPestanasDeslizables({
   screenId:'amigos',barSelector:'.friends-tabs',
   buttonIds:['tabChatsAmigos','tabMisAmigos','tabSolicitudesAmigos'],
-  keys:['chats','amigos','solicitudes'],panelIds:['listaAmigos','buscadorAmigos'],
+  keys:['chats','amigos','solicitudes'],panelIds:['listaAmigos','buscadorAmigos'],surfaceSelector:'.social-body',
   select:key=>window.mostrarTabAmigos(key)
 });
