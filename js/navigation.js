@@ -205,3 +205,73 @@ export function confirmarAccion({titulo, mensaje, aceptar}){
     volver.focus({preventScroll:true});
   });
 }
+
+ 
+// Gestos locales: Inicio conserva el swipe de sus tarjetas.
+function instalarPestanasDeslizables({screenId,barSelector,buttonIds,keys,panelIds,select}){
+  const screen=document.getElementById(screenId),bar=screen?.querySelector(barSelector);
+  const buttons=buttonIds.map(id=>document.getElementById(id));
+  const panels=panelIds.map(id=>document.getElementById(id)).filter(Boolean);
+  if(!bar||buttons.some(b=>!b)||!panels.length)return;
+  bar.classList.add('swipe-tab-bar');
+  const indicator=document.createElement('span');indicator.className='swipe-tab-indicator';indicator.setAttribute('aria-hidden','true');bar.append(indicator);
+  const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const active=()=>buttons.findIndex(b=>b.classList.contains('active')||b.getAttribute('aria-pressed')==='true');
+  let previous=active(),gesture=null,suppressUntil=0;
+  const position=()=>{
+    const index=active();if(index<0||!screen.classList.contains('active'))return;
+    const rect=buttons[index].getBoundingClientRect(),base=bar.getBoundingClientRect();
+    indicator.style.width=rect.width+'px';
+    indicator.style.transform='translateX('+(rect.left-base.left+bar.scrollLeft)+'px)';
+    if(previous>=0&&index!==previous&&!reduced()){
+      const direction=index>previous?1:-1;
+      for(const panel of panels){
+        panel.getAnimations?.().forEach(a=>a.cancel());
+        panel.animate?.([{opacity:.45,transform:'translateX('+direction*24+'px)'},{opacity:1,transform:'translateX(0)'}],{duration:180,easing:'ease-out'});
+      }
+    }
+    previous=index;
+  };
+  const observer=new MutationObserver(position);
+  buttons.forEach(b=>observer.observe(b,{attributes:true,attributeFilter:['class','aria-pressed']}));
+  new MutationObserver(position).observe(screen,{attributes:true,attributeFilter:['class']});
+  new ResizeObserver(position).observe(bar);
+  bar.addEventListener('scroll',position,{passive:true});
+  panels.forEach(panel=>{
+    panel.classList.add('swipe-tab-panel');
+    panel.addEventListener('pointerdown',e=>{
+      if(e.pointerType==='mouse'||!e.isPrimary||e.clientX<24||e.clientX>window.innerWidth-24||e.target.closest('button,input,textarea,select,a,dialog'))return;
+      gesture={id:e.pointerId,x:e.clientX,y:e.clientY,time:performance.now(),index:active()};
+    },{passive:true});
+    panel.addEventListener('pointermove',e=>{
+      if(!gesture||e.pointerId!==gesture.id)return;
+      const dx=e.clientX-gesture.x,dy=e.clientY-gesture.y;
+      if(Math.abs(dy)>18&&Math.abs(dy)>Math.abs(dx)){gesture=null;return;}
+    },{passive:true});
+    panel.addEventListener('pointercancel',()=>{gesture=null;});
+    panel.addEventListener('pointerup',e=>{
+      const g=gesture;gesture=null;if(!g||g.id!==e.pointerId)return;
+      const dx=e.clientX-g.x,dy=e.clientY-g.y;
+      if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.5||performance.now()-g.time>1000)return;
+      const next=g.index+(dx<0?1:-1);
+      suppressUntil=performance.now()+500;
+      if(next>=0&&next<keys.length&&g.index===active()){
+        select(keys[next]);buttons[next].scrollIntoView({block:'nearest',inline:'nearest',behavior:reduced()?'instant':'smooth'});
+      }
+    });
+    panel.addEventListener('click',e=>{if(performance.now()<suppressUntil){e.preventDefault();e.stopImmediatePropagation();}},true);
+  });
+  position();
+}
+instalarPestanasDeslizables({
+  screenId:'misPartidos',barSelector:'.tabs',
+  buttonIds:['tab-creados','tab-pendientes','tab-confirmados','tab-finalizados'],
+  keys:['creados','pendientes','confirmados','finalizados'],panelIds:['listaPartidos'],
+  select:key=>window.switchTab(key)
+});
+instalarPestanasDeslizables({
+  screenId:'amigos',barSelector:'.friends-tabs',
+  buttonIds:['tabChatsAmigos','tabMisAmigos','tabSolicitudesAmigos'],
+  keys:['chats','amigos','solicitudes'],panelIds:['listaAmigos','buscadorAmigos'],
+  select:key=>window.mostrarTabAmigos(key)
+});
