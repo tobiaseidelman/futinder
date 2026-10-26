@@ -139,7 +139,7 @@ const origCambiarPantalla = window.cambiarPantalla;
 window.cambiarPantalla = (id) => {
   origCambiarPantalla(id);
   if(id === "misPartidos" && state.usuario && state.perfil) renderTabPartidos();
-  if(id === 'crear' && !creandoPartido){
+  if(id === 'crear' && !creandoPartido && !window.restaurandoNavegacion?.()){
     pedirUbicacion();
     state.canchaSeleccionada = null;
     state.tipoSel = '';
@@ -564,12 +564,7 @@ window.eliminarDeCreados = async (partidoId) => {
 };
 
 window.verMisPartidos = () => {
-  tabActual = 'creados';
-  document.getElementById("tab-creados").classList.add("active");
-  document.getElementById("tab-pendientes")?.classList.remove("active");
-  document.getElementById("tab-confirmados").classList.remove("active");
-  document.getElementById("tab-finalizados").classList.remove("active");
-  renderTabPartidos();
+  window.switchTab(tabActual);
   cambiarPantalla("misPartidos");
 };
 
