@@ -617,3 +617,8 @@ body:has(#home.active){min-height:0;height:100dvh;overflow:hidden}
 .shared-match-status.available{color:var(--green)}
 .shared-match-body>button{width:100%;min-height:40px}
 .shared-match-message>.message-time{padding:0 12px 9px;margin:0}
+
+.swipe-tab-bar{position:relative;padding-bottom:8px!important}
+.swipe-tab-indicator{position:absolute;bottom:1px;left:0;height:3px;background:var(--green);border-radius:3px;pointer-events:none;transition:transform .18s ease-out,width .18s ease-out}
+.swipe-tab-panel{touch-action:pan-y;min-height:140px}
+@media(prefers-reduced-motion:reduce){.swipe-tab-indicator{transition:none}}
